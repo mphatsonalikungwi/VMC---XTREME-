@@ -146,7 +146,7 @@ footer{padding:35px 0;border-top:1px solid var(--line);color:var(--muted);font-s
 
 
 <div class="modal" id="ownerModal"><div class="modal-card" style="width:min(1050px,100%);max-height:92vh;overflow:auto"><button class="close" onclick="closeOwner()">×</button><div class="kicker">Owner only · Secure workspace</div><h2 style="margin-top:5px">VMC Xtreme Admin Dashboard</h2><p class="muted">Owner access is authenticated by the VMC backend. Customer records shown here come from the database.</p><div id="adminDashboard"></div></div></div>
-
+<script>
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 $('#year').textContent=new Date().getFullYear();
 $('#burger').addEventListener('click',()=>$('#navList').classList.toggle('open'));

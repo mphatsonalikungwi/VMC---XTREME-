@@ -151,7 +151,7 @@ const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 $('#year').textContent=new Date().getFullYear();
 $('#burger').addEventListener('click',()=>$('#navList').classList.toggle('open'));
 $$('#navList a').forEach(a=>a.addEventListener('click',()=>$('#navList').classList.remove('open')));
-const API={async request(url,opt={}){const r=await fetch(url,{credentials:'include',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);return d}};
+const API={async request(url,opt={}){const r=await fetch('https://vmc-xtreme-1.onrender.com'+url,{credentials:'include',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);return d}};
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function money(n){return 'K '+Number(n||0).toLocaleString('en-MW')}
 function showMsg(id,t){let e=$('#'+id);e.style.display='block';e.textContent=t}

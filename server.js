@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
+const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -30,6 +31,10 @@ const seed = fs.readFileSync(path.join(__dirname, "seed.sql"), "utf8");
 db.exec(schema);
 db.exec(seed);
 
+app.use(cors({
+   "https://mphatsonalikungwi.github.io",
+  credentials: true
+}));
 app.use(helmet({
   contentSecurityPolicy: false
 }));

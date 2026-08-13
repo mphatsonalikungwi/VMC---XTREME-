@@ -32,7 +32,7 @@ db.exec(schema);
 db.exec(seed);
 
 app.use(cors({
-   "https://mphatsonalikungwi.github.io",
+  origin: "https://mphatsonalikungwi.github.io",
   credentials: true
 }));
 app.use(helmet({

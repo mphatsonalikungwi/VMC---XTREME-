@@ -285,6 +285,44 @@ app.get("/api/me", requireAuth, (req, res) => {
 });
 
 
+app.get("/api/owner/migration/export", requireSuperOwner, (req, res) => {
+  // Read-only, owner-authenticated export of the live SQLite data.
+  // This endpoint never modifies the database. It exists only for the controlled
+  // SQLite -> PostgreSQL migration and should be removed after migration.
+  const tables = [
+    "customers",
+    "membership_plans",
+    "memberships",
+    "payments",
+    "rules_acceptance",
+    "notification_log",
+    "audit_log",
+    "owner_accounts"
+  ];
+
+  const data = {};
+  const counts = {};
+  for (const table of tables) {
+    data[table] = db.prepare(`SELECT * FROM ${table} ORDER BY id`).all();
+    counts[table] = data[table].length;
+  }
+
+  audit("owner", req.user.sub, "MIGRATION_EXPORT", "database", null, { counts });
+
+  const payload = {
+    format: "vmc-xtreme-sqlite-export",
+    version: 1,
+    exported_at: new Date().toISOString(),
+    counts,
+    data
+  };
+
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="vmc-sqlite-export.json"');
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.status(200).send(JSON.stringify(payload));
+});
+
 app.get("/api/owner/dashboard/stats", requireOwner, (req, res) => {
   const total = db.prepare("SELECT COUNT(*) AS count FROM customers").get().count;
   const active = db.prepare("SELECT COUNT(*) AS count FROM memberships WHERE LOWER(status)='active' AND (expiry_date IS NULL OR date(expiry_date) >= date('now'))").get().count;

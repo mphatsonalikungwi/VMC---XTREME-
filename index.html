@@ -50,6 +50,53 @@ footer{padding:35px 0;border-top:1px solid var(--line);color:var(--muted);font-s
 .owner-password-wrap{position:relative;display:flex;align-items:center}
 .owner-password-wrap input{flex:1;padding-right:74px}
 .owner-password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:3;border:0;background:transparent;padding:8px 6px;font:inherit;cursor:pointer}
+
+/* VMC OWNER PORTAL V2 — scoped only to #ownerModal. Public website remains untouched. */
+#ownerModal .modal-card{width:min(1180px,100%);padding:24px;background:linear-gradient(180deg,#10151b,#0b0e12)}
+#ownerModal .owner-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-right:34px}
+#ownerModal .owner-head h2{margin:4px 0 6px;font-size:clamp(28px,4vw,42px)}
+#ownerModal .owner-head p{margin:0;max-width:720px}
+#ownerModal .owner-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid rgba(242,193,78,.28);background:rgba(242,193,78,.08);border-radius:999px;color:#f2c14e;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.1em}
+#ownerModal .owner-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}
+#ownerModal .owner-stat{padding:16px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(180deg,#171c22,#101419);min-height:104px}
+#ownerModal .owner-stat .icon{width:34px;height:34px;font-size:16px;border-radius:10px;margin-bottom:10px}
+#ownerModal .owner-stat strong{display:block;font-size:27px;line-height:1.05}
+#ownerModal .owner-stat span{display:block;margin-top:5px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+#ownerModal .owner-stat.warning{border-color:rgba(242,193,78,.35)}
+#ownerModal .owner-stat.danger{border-color:rgba(230,57,70,.35)}
+#ownerModal .owner-money{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+#ownerModal .owner-money-card{padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#0d1115}
+#ownerModal .owner-money-card span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+#ownerModal .owner-money-card strong{display:block;margin-top:4px;font-size:22px}
+#ownerModal .owner-alert{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid rgba(242,193,78,.28);background:rgba(242,193,78,.07);border-radius:12px;margin:14px 0;font-size:12px}
+#ownerModal .owner-alert strong{color:#f2c14e}
+#ownerModal .owner-panels{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+#ownerModal .owner-panel{border:1px solid var(--line);border-radius:15px;background:#0e1217;overflow:hidden}
+#ownerModal .owner-panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 15px;border-bottom:1px solid var(--line)}
+#ownerModal .owner-panel-head h3{margin:0;font-size:15px}
+#ownerModal .owner-panel-body{padding:12px 15px}
+#ownerModal .owner-list{display:grid;gap:8px}
+#ownerModal .owner-list-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0a0e12}
+#ownerModal .owner-list-row strong{font-size:12px}
+#ownerModal .owner-list-row small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+#ownerModal .owner-toolbar{display:grid;grid-template-columns:minmax(180px,1fr) auto auto auto auto;gap:8px;align-items:center;margin:16px 0 10px}
+#ownerModal .owner-toolbar input{min-width:0}
+#ownerModal .owner-count{font-size:11px;color:var(--muted);margin-bottom:9px}
+#ownerModal .owner-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:15px;background:#0d1115}
+#ownerModal .owner-table{width:100%;min-width:900px;border-collapse:collapse}
+#ownerModal .owner-table th,#ownerModal .owner-table td{padding:12px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;vertical-align:middle}
+#ownerModal .owner-table th{background:#171c22;color:#dfe3e7;text-transform:uppercase;font-size:9px;letter-spacing:.08em;position:sticky;top:0;z-index:1}
+#ownerModal .owner-table tr:last-child td{border-bottom:0}
+#ownerModal .owner-actions{display:flex;gap:6px;flex-wrap:wrap}
+#ownerModal .owner-actions button{border:1px solid var(--line);background:#1a2027;color:#fff;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:800}
+#ownerModal .owner-actions button:hover{border-color:rgba(230,57,70,.55);background:#232a32}
+#ownerModal .owner-actions button:first-child{background:rgba(230,57,70,.12);border-color:rgba(230,57,70,.3)}
+#ownerModal .owner-mobile-list{display:none}
+#ownerModal .owner-section-title{margin:18px 0 9px;font-size:15px}
+#ownerModal .owner-detail{margin-top:14px}
+@media(max-width:900px){#ownerModal .owner-grid{grid-template-columns:1fr 1fr}#ownerModal .owner-toolbar{grid-template-columns:1fr 1fr}#ownerModal .owner-toolbar input{grid-column:1/-1}#ownerModal .owner-panels{grid-template-columns:1fr}}
+@media(max-width:620px){#ownerModal .modal-card{padding:18px}#ownerModal .owner-grid{grid-template-columns:1fr 1fr;gap:8px}#ownerModal .owner-stat{min-height:94px;padding:13px}#ownerModal .owner-stat strong{font-size:23px}#ownerModal .owner-money{grid-template-columns:1fr 1fr}#ownerModal .owner-toolbar{grid-template-columns:1fr 1fr}#ownerModal .owner-toolbar .btn{width:100%;padding:10px 8px;font-size:11px}#ownerModal .owner-table-wrap{display:none}#ownerModal .owner-mobile-list{display:grid;gap:9px}.owner-mobile-card{padding:13px;border:1px solid var(--line);border-radius:13px;background:#0d1115}.owner-mobile-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.owner-mobile-top h4{margin:0;font-size:14px}.owner-mobile-top small{color:var(--muted);font-size:10px}.owner-mobile-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}.owner-mobile-meta div{padding:8px;border-radius:9px;background:#151a20}.owner-mobile-meta span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase}.owner-mobile-meta strong{font-size:11px}.owner-mobile-card .owner-actions{margin-top:8px}.owner-mobile-card .owner-actions button{flex:1}}
+
 </style>
 <style>.dashboard-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}.stat-card{padding:16px;border-radius:14px;border:1px solid var(--line);background:#151a20;color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.25)}.stat-card span{display:block;font-size:.82rem;opacity:.72;margin-bottom:6px}.stat-card strong{font-size:1.45rem}.dashboard-section{margin:18px 0;padding:16px;border-radius:14px;border:1px solid var(--line);background:linear-gradient(180deg,#151a20,#0f1317);color:var(--text);overflow:auto}.dashboard-section h3{margin-top:0;color:var(--text)}.dashboard-section p,.dashboard-section span,.dashboard-section div{color:inherit}.dashboard-table{width:100%;border-collapse:collapse;color:var(--text)}.dashboard-table th,.dashboard-table td{text-align:left;padding:9px 7px;border-bottom:1px solid var(--line);color:var(--text)}.dashboard-table th{color:#dfe3e7;background:#171c22}@media(min-width:720px){.dashboard-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}</style>
 <style id="vmc-portal-safe-polish">
@@ -237,41 +284,45 @@ async function loadOwnerBusinessStats(){
 async function admin(q=''){
   try{
     const a=await API.request('/api/owner/members');
-    const m=a.filter(x=>[x.member_id,x.full_name,x.email,x.phone,x.method,x.payment_status].join(' ').toLowerCase().includes(q.toLowerCase()));
+    const term=(q||'').trim().toLowerCase();
+    const m=a.filter(x=>[x.member_id,x.full_name,x.email,x.phone,x.method,x.payment_status].join(' ').toLowerCase().includes(term));
     const ac=a.filter(x=>x.status==='active').length;
     const pe=a.filter(x=>x.status==='pending_payment').length;
     const ex=a.filter(x=>x.status==='expired').length;
     const pendingText=pe?`${pe} payment${pe===1?'':'s'} waiting for verification`:'No payments waiting for verification';
     const memberActions=x=>`${x.status==='pending_payment'&&!x.payment_id?`<button onclick="addPendingPayment(${x.membership_id})">Add payment</button>`:''}${x.payment_status!=='verified'&&x.payment_id?`<button onclick="verify(${x.payment_id})">Verify payment</button>`:''}${x.status==='active'&&x.membership_id?`<button onclick="renew(${x.membership_id})">Renew</button>`:''}`;
     $('#adminDashboard').innerHTML=`
-      <div class="portal-kpis">
-        <div class="portal-kpi"><strong>${a.length}</strong><span>Total customers</span></div>
-        <div class="portal-kpi"><strong>${ac}</strong><span>Active members</span></div>
-        <div class="portal-kpi warning"><strong>${pe}</strong><span>Pending payments</span></div>
-        <div class="portal-kpi danger"><strong>${ex}</strong><span>Expired memberships</span></div>
+      <div class="owner-head">
+        <div><div class="owner-badge">● Live database · Owner access</div><h2>VMC Xtreme Admin Dashboard</h2><p class="muted">Manage customers, memberships, payments and staff from one secure workspace.</p></div>
       </div>
-      <div class="portal-revenue">
-        <div class="portal-revenue-card"><span>Verified today</span><strong id="bizToday">—</strong></div>
-        <div class="portal-revenue-card"><span>Verified this month</span><strong id="bizMonth">—</strong></div>
+      <div class="owner-grid">
+        <div class="owner-stat"><div class="icon">👥</div><strong>${a.length}</strong><span>Total customers</span></div>
+        <div class="owner-stat"><div class="icon">✓</div><strong>${ac}</strong><span>Active members</span></div>
+        <div class="owner-stat warning"><div class="icon">₱</div><strong>${pe}</strong><span>Pending payments</span></div>
+        <div class="owner-stat danger"><div class="icon">!</div><strong>${ex}</strong><span>Expired memberships</span></div>
       </div>
-      <div class="portal-summary-grid">
-        <div class="dashboard-section"><h3>Payment Methods</h3><div id="paymentMethodSummary" class="portal-summary-list">Loading…</div></div>
-        <div class="dashboard-section"><h3>Recent Customers</h3><div id="recentMembersSummary" class="portal-summary-list">Loading…</div></div>
+      <div class="owner-money">
+        <div class="owner-money-card"><span>Verified today</span><strong id="bizToday">—</strong></div>
+        <div class="owner-money-card"><span>Verified this month</span><strong id="bizMonth">—</strong></div>
       </div>
-      <div class="portal-toolbar">
+      ${pe?`<div class="owner-alert"><div><strong>Action required:</strong> ${pendingText}.</div><button class="btn btn-dark" onclick="admin($('#adminSearch')?.value||'')">Refresh</button></div>`:`<div class="owner-alert"><div><strong>All clear:</strong> No payments are currently waiting for verification.</div></div>`}
+      <div class="owner-panels">
+        <div class="owner-panel"><div class="owner-panel-head"><h3>Payment Methods</h3><span class="muted" style="font-size:10px">Verified</span></div><div class="owner-panel-body"><div id="paymentMethodSummary" class="owner-list">Loading…</div></div></div>
+        <div class="owner-panel"><div class="owner-panel-head"><h3>Recent Customers</h3><span class="muted" style="font-size:10px">Latest records</span></div><div class="owner-panel-body"><div id="recentMembersSummary" class="owner-list">Loading…</div></div></div>
+      </div>
+      <div class="owner-toolbar">
         <input id="adminSearch" placeholder="Search name, ID, phone, email…" value="${esc(q)}">
         <button class="btn btn-dark" onclick="admin($('#adminSearch').value)">Search</button>
         <button class="btn btn-primary" onclick="admin()">Refresh</button>
         <button class="btn btn-primary" onclick="addOwnerMember()">Add Customer</button>
-        <button class="btn btn-primary" onclick="ownerManagement()">Staff &amp; Access</button>
-        <button class="btn btn-dark" onclick="ownerLogout()">Sign out</button>
+        <button class="btn btn-dark" onclick="ownerManagement()">Staff &amp; Access</button>
       </div>
-      <div class="muted" style="font-size:11px;margin-bottom:10px">${m.length} matching member record${m.length===1?'':'s'} shown below. ${pendingText}.</div>
-      <div class="portal-table-wrap">
-        ${m.length?`<table class="portal-table"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Payment</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead><tbody>${m.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong><br><span class="muted">${esc(x.member_id)}</span></td><td>${esc(x.duration)}<br>${esc(x.session_type)}</td><td>${money(x.price)}</td><td>${esc(x.method||'—')}<br><span class="muted">${esc(x.payment_status||'—')}</span></td><td><span class="pill ${statusClass(status(x))}">${status(x)}</span></td><td>${shortDate(x.expiry_date)}</td><td><div class="admin-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${memberActions(x)}</div></td></tr>`).join('')}</tbody></table>`:'<div class="empty">No registrations found.</div>'}
-        ${m.length?`<div class="portal-mobile-members">${m.map(x=>`<div class="portal-member-card"><div class="portal-member-top"><div><h4>${esc(x.full_name)}</h4><small>${esc(x.member_id)}</small></div><span class="pill ${statusClass(status(x))}">${status(x)}</span></div><div class="portal-member-meta"><div><span>Plan</span><strong>${esc(x.duration)} · ${esc(x.session_type)}</strong></div><div><span>Amount</span><strong>${money(x.price)}</strong></div><div><span>Payment</span><strong>${esc(x.method||'—')}</strong></div><div><span>Expiry</span><strong>${shortDate(x.expiry_date)}</strong></div></div><div class="admin-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${memberActions(x)}</div></div>`).join('')}</div>`:''}
+      <div class="owner-count">${m.length} matching member record${m.length===1?'':'s'} shown. ${pendingText}.</div>
+      <div class="owner-table-wrap">
+        ${m.length?`<table class="owner-table"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Payment</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead><tbody>${m.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong><br><span class="muted">${esc(x.member_id)}</span></td><td>${esc(x.duration)} · ${esc(x.session_type)}</td><td>${money(x.price)}</td><td>${esc(x.method||'—')}<br><span class="muted">${esc(x.payment_status||'—')}</span></td><td><span class="pill ${statusClass(status(x))}">${status(x)}</span></td><td>${shortDate(x.expiry_date)}</td><td><div class="owner-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${memberActions(x)}</div></td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:20px">No registrations found.</div>'}
       </div>
-      <div id="memberDetail"></div>`;
+      ${m.length?`<div class="owner-mobile-list">${m.map(x=>`<div class="owner-mobile-card"><div class="owner-mobile-top"><div><h4>${esc(x.full_name)}</h4><small>${esc(x.member_id)}</small></div><span class="pill ${statusClass(status(x))}">${status(x)}</span></div><div class="owner-mobile-meta"><div><span>Plan</span><strong>${esc(x.duration)} · ${esc(x.session_type)}</strong></div><div><span>Amount</span><strong>${money(x.price)}</strong></div><div><span>Payment</span><strong>${esc(x.method||'—')}</strong></div><div><span>Expiry</span><strong>${shortDate(x.expiry_date)}</strong></div></div><div class="owner-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${memberActions(x)}</div></div>`).join('')}</div>`:''}
+      <div id="memberDetail" class="owner-detail"></div>`;
     loadOwnerBusinessStats();
   }catch(x){$('#adminDashboard').innerHTML=`<div class="notice">${esc(x.message)}</div>`}
 }

@@ -118,6 +118,8 @@ app.get("/api/plans", (_req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
+  return jsonError(res, 503, "Customer registration is coming soon. Please contact VMC directly.");
+
   if (process.env.PUBLIC_REGISTRATION_ENABLED !== "true") {
     return jsonError(res, 503, "Customer Registration Coming Soon.");
   }

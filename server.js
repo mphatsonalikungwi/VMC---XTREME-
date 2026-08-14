@@ -117,6 +117,10 @@ function authCookieOptions() {
     httpOnly: true,
     secure: process.env.COOKIE_SECURE !== "false",
     sameSite: process.env.COOKIE_SAMESITE || "none",
+    // GitHub Pages -> Render is cross-site. Partitioned cookies (CHIPS)
+    // allow the session cookie in browsers that block ordinary third-party
+    // cookies, including private/incognito contexts.
+    partitioned: true,
     maxAge: 8 * 60 * 60 * 1000,
     path: "/"
   };

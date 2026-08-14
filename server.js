@@ -421,6 +421,64 @@ app.get("/api/owner/members", requireOwner, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+
+app.post("/api/owner/memberships/:membershipId/payment", requireOwner, async (req, res, next) => {
+  try {
+    const membership = await one(`
+      SELECT m.id, m.customer_id, m.status, p.price
+      FROM memberships m
+      JOIN membership_plans p ON p.id=m.plan_id
+      WHERE m.id=$1
+    `, [req.params.membershipId]);
+
+    if (!membership) return jsonError(res, 404, "Membership not found.");
+    if (membership.status !== "pending_payment") {
+      return jsonError(res, 400, "This membership is not awaiting payment.");
+    }
+
+    const existingPayment = await one(
+      "SELECT id FROM payments WHERE membership_id=$1 ORDER BY id DESC LIMIT 1",
+      [membership.id]
+    );
+    if (existingPayment) {
+      return jsonError(res, 409, "A payment already exists for this membership.");
+    }
+
+    const method = String(req.body?.method || "").trim();
+    const reference = String(req.body?.reference || "").trim() || null;
+    const allowedMethods = new Set(["Airtel Money", "TNM Mpamba", "National Bank", "Cash"]);
+    if (!allowedMethods.has(method)) {
+      return jsonError(res, 400, "A valid payment method is required.");
+    }
+
+    const amount = Number(membership.price);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return jsonError(res, 400, "Invalid membership plan price.");
+    }
+
+    let payment;
+    await withTransaction(async (client) => {
+      payment = await one(`
+        INSERT INTO payments
+          (customer_id, membership_id, amount, method, reference, status)
+        VALUES ($1, $2, $3, $4, $5, 'pending')
+        RETURNING id
+      `, [membership.customer_id, membership.id, amount, method, reference], client);
+
+      await audit("owner", null, "PAYMENT_ADDED", "payment", payment.id, {
+        membershipId: membership.id, amount, method, reference
+      }, client);
+    });
+
+    res.status(201).json({
+      ok: true,
+      paymentId: payment.id,
+      membershipId: membership.id,
+      status: "pending"
+    });
+  } catch (error) { next(error); }
+});
+
 app.post("/api/owner/payments/:paymentId/verify", requireOwner, async (req, res, next) => {
   try {
     const payment = await one("SELECT * FROM payments WHERE id=$1", [req.params.paymentId]);

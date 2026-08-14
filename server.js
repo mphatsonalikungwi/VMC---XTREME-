@@ -62,6 +62,12 @@ async function initializeDatabase() {
   const seed = fs.readFileSync(path.join(__dirname, "seed.sql"), "utf8");
   await exec(schema);
   await exec(seed);
+  // Password recovery fields are additive and safe for existing PostgreSQL data.
+  await exec(`ALTER TABLE customers
+    ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT,
+    ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS password_reset_used_at TIMESTAMPTZ`);
 
   // Bootstrap the primary owner from Render environment variables once.
   // Additional owners are stored securely in the database.
@@ -147,6 +153,23 @@ function requireOwner(req, res, next) {
     next();
   });
 }
+function requireCustomer(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user.role !== "customer") return jsonError(res, 403, "Customer access required.");
+    next();
+  });
+}
+
+function hashResetToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 async function checkSuperOwner(req, res, next) {
   requireOwner(req, res, async () => {
@@ -267,6 +290,65 @@ app.post("/api/auth/login", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.post("/api/auth/change-password", requireCustomer, async (req, res, next) => {
+  try {
+    const currentPassword = String(req.body?.currentPassword || "");
+    const newPassword = String(req.body?.newPassword || "");
+    const confirmPassword = String(req.body?.confirmPassword || "");
+    if (!currentPassword || !newPassword || !confirmPassword) return jsonError(res, 400, "All password fields are required.");
+    if (newPassword.length < 8) return jsonError(res, 400, "New password must be at least 8 characters.");
+    if (newPassword !== confirmPassword) return jsonError(res, 400, "New passwords do not match.");
+    const customer = await one("SELECT id, password_hash, account_status FROM customers WHERE id=$1", [req.user.sub]);
+    if (!customer || customer.account_status !== "active") return jsonError(res, 401, "Customer account is not active.");
+    if (!(await bcrypt.compare(currentPassword, customer.password_hash))) return jsonError(res, 401, "Current password is incorrect.");
+    if (await bcrypt.compare(newPassword, customer.password_hash)) return jsonError(res, 400, "New password must be different from your current password.");
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await exec("UPDATE customers SET password_hash=$1, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$2", [passwordHash, customer.id]);
+    await audit("customer", customer.id, "PASSWORD_CHANGED", "customer", customer.id);
+    const token = signToken({ sub: customer.id, role: "customer" });
+    res.cookie("vmc_session", token, authCookieOptions());
+    res.json({ ok: true, message: "Password changed successfully." });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/auth/forgot-password", passwordResetLimiter, async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!email) return jsonError(res, 400, "Email address is required.");
+    const customer = await one("SELECT id FROM customers WHERE email=$1 AND account_status='active'", [email]);
+    // Do not reveal whether an email belongs to a customer account.
+    if (customer) {
+      await exec("UPDATE customers SET password_reset_requested_at=CURRENT_TIMESTAMP, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1", [customer.id]);
+      await audit("customer", customer.id, "PASSWORD_RESET_REQUESTED", "customer", customer.id);
+    }
+    res.json({ ok: true, message: "If the account exists, a password reset request has been sent to VMC for verification." });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/auth/reset-password", passwordResetLimiter, async (req, res, next) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const code = String(req.body?.code || "").trim().toUpperCase();
+    const newPassword = String(req.body?.newPassword || "");
+    const confirmPassword = String(req.body?.confirmPassword || "");
+    if (!email || !code || !newPassword || !confirmPassword) return jsonError(res, 400, "Email, reset code and all password fields are required.");
+    if (newPassword.length < 8) return jsonError(res, 400, "New password must be at least 8 characters.");
+    if (newPassword !== confirmPassword) return jsonError(res, 400, "New passwords do not match.");
+    const customer = await one("SELECT id, password_hash, password_reset_token_hash, password_reset_expires_at, password_reset_used_at, account_status FROM customers WHERE email=$1", [email]);
+    if (!customer || customer.account_status !== "active" || !customer.password_reset_token_hash || customer.password_reset_used_at || !customer.password_reset_expires_at || new Date(customer.password_reset_expires_at).getTime() < Date.now()) {
+      return jsonError(res, 400, "The reset code is invalid or has expired. Please request a new reset.");
+    }
+    if (hashResetToken(code) !== customer.password_reset_token_hash) return jsonError(res, 400, "The reset code is invalid or has expired. Please request a new reset.");
+    if (await bcrypt.compare(newPassword, customer.password_hash)) return jsonError(res, 400, "New password must be different from your previous password.");
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await exec("UPDATE customers SET password_hash=$1, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=CURRENT_TIMESTAMP, password_reset_requested_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$2", [passwordHash, customer.id]);
+    await audit("customer", customer.id, "PASSWORD_RESET_COMPLETED", "customer", customer.id);
+    const token = signToken({ sub: customer.id, role: "customer" });
+    res.cookie("vmc_session", token, authCookieOptions());
+    res.json({ ok: true, message: "Password reset successfully." });
+  } catch (error) { next(error); }
+});
+
 app.post("/api/auth/owner-login", async (req, res, next) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
@@ -304,6 +386,35 @@ app.get("/api/me", requireAuth, async (req, res, next) => {
       ORDER BY m.id DESC LIMIT 1
     `, [req.user.sub]);
     res.json({ role: "customer", customer, membership: membership || null });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/owner/password-reset-requests", requireOwner, async (_req, res, next) => {
+  try {
+    const rows = await many(`
+      SELECT id, member_id, full_name, email, password_reset_requested_at
+      FROM customers
+      WHERE password_reset_requested_at IS NOT NULL
+        AND password_reset_used_at IS NULL
+      ORDER BY password_reset_requested_at DESC
+    `);
+    res.json(rows);
+  } catch (error) { next(error); }
+});
+
+app.post("/api/owner/password-reset-requests/:customerId/approve", requireOwner, async (req, res, next) => {
+  try {
+    const id = Number(req.params.customerId);
+    if (!Number.isInteger(id)) return jsonError(res, 400, "Invalid customer.");
+    const customer = await one("SELECT id, member_id, full_name, email FROM customers WHERE id=$1 AND account_status='active'", [id]);
+    if (!customer) return jsonError(res, 404, "Customer not found or inactive.");
+    const pending = await one("SELECT password_reset_requested_at FROM customers WHERE id=$1 AND password_reset_requested_at IS NOT NULL AND password_reset_used_at IS NULL", [id]);
+    if (!pending) return jsonError(res, 400, "No pending password reset request exists for this customer.");
+    const code = crypto.randomBytes(5).toString("hex").toUpperCase();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await exec("UPDATE customers SET password_reset_token_hash=$1, password_reset_expires_at=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3", [hashResetToken(code), expiresAt, id]);
+    await audit("owner", req.user.sub, "PASSWORD_RESET_APPROVED", "customer", id, { expiresAt: expiresAt.toISOString() });
+    res.json({ ok: true, memberId: customer.member_id, fullName: customer.full_name, email: customer.email, code, expiresAt: expiresAt.toISOString() });
   } catch (error) { next(error); }
 });
 

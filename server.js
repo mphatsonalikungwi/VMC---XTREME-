@@ -284,6 +284,52 @@ app.get("/api/me", requireAuth, (req, res) => {
   res.json({ role: "customer", customer, membership: membership || null });
 });
 
+
+app.get("/api/owner/dashboard/stats", requireOwner, (req, res) => {
+  // Dashboard metrics are derived from the current VMC database schema.
+  const memberTotal = db.prepare("SELECT COUNT(*) AS count FROM members").get().count;
+  const memberRows = db.prepare("SELECT * FROM members ORDER BY rowid DESC LIMIT 1000").all();
+
+  // Current member records use the existing membership/payment fields.
+  const active = memberRows.filter(m => String(m.status || "").toLowerCase() === "active").length;
+  const expired = memberRows.filter(m => String(m.status || "").toLowerCase() === "expired").length;
+
+  const payments = db.prepare("SELECT * FROM payments ORDER BY rowid DESC LIMIT 2000").all();
+  const amountOf = p => Number(p.amount || p.payment_amount || p.total || 0) || 0;
+  const dateOf = p => p.payment_date || p.paid_at || p.created_at || p.date || null;
+  const today = new Date().toISOString().slice(0,10);
+  const month = today.slice(0,7);
+  const paymentsToday = payments.filter(p => String(dateOf(p) || "").slice(0,10) === today)
+    .reduce((sum,p) => sum + amountOf(p), 0);
+  const paymentsMonth = payments.filter(p => String(dateOf(p) || "").slice(0,7) === month)
+    .reduce((sum,p) => sum + amountOf(p), 0);
+
+  const paymentMethods = {};
+  for (const p of payments) {
+    const method = p.payment_method || p.method || "Other";
+    if (!paymentMethods[method]) paymentMethods[method] = {method, total:0, count:0};
+    paymentMethods[method].total += amountOf(p);
+    paymentMethods[method].count += 1;
+  }
+
+  const recentMembers = memberRows.slice(0,8).map(m => ({
+    id: m.id,
+    full_name: m.full_name || m.name || m.customer_name || "—",
+    phone: m.phone || m.phone_number || "—",
+    membership_id: m.membership_id || m.member_id || "—",
+    status: m.status || "—",
+    start_date: m.start_date || m.join_date || m.created_at || "—",
+    expiry_date: m.expiry_date || m.end_date || m.membership_end || "—"
+  }));
+
+  res.json({
+    ok: true,
+    stats: {total: memberTotal, active, expired, expiringSoon: 0, paymentsToday, paymentsMonth},
+    paymentMethods: Object.values(paymentMethods).sort((a,b) => b.total - a.total),
+    recentMembers
+  });
+});
+
 app.post("/api/owner/members", requireOwner, (req, res) => {
   const {
     full_name, dob, gender, phone, email, emergency_contact,

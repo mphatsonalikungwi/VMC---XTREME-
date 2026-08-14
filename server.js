@@ -71,8 +71,8 @@ function expiryDate(start, duration) {
 function authCookieOptions() {
   return {
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === "true",
-    sameSite: "strict",
+    secure: true,
+    sameSite: "none",
     maxAge: 8 * 60 * 60 * 1000,
     path: "/"
   };
@@ -118,6 +118,9 @@ app.get("/api/plans", (_req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
+  if (process.env.PUBLIC_REGISTRATION_ENABLED !== "true") {
+    return jsonError(res, 503, "Customer Registration Coming Soon.");
+  }
   const {
     fullName, dob, gender, phone, email, emergencyContact,
     duration, sessionType, paymentMethod, paymentReference,
@@ -222,7 +225,7 @@ app.post("/api/auth/owner-login", async (req, res) => {
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  res.clearCookie("vmc_session", { httpOnly: true, secure: process.env.COOKIE_SECURE === "true", sameSite: "strict", path: "/" });
+  res.clearCookie("vmc_session", { httpOnly: true, secure: true, sameSite: "none", path: "/" });
   res.status(204).end();
 });
 

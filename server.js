@@ -249,6 +249,84 @@ app.get("/api/me", requireAuth, (req, res) => {
   res.json({ role: "customer", customer, membership: membership || null });
 });
 
+app.post("/api/owner/members", requireOwner, (req, res) => {
+  const {
+    full_name, dob, gender, phone, email, emergency_contact,
+    duration, session_type, start_date, amount, method, reference
+  } = req.body;
+
+  const allowedMethods = ["Airtel Money", "TNM Mpamba", "National Bank", "Cash"];
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  const cleanAmount = Number(amount);
+
+  if (!full_name || !dob || !gender || !phone || !cleanEmail || !emergency_contact ||
+      !duration || !session_type || !start_date || !method || !Number.isFinite(cleanAmount) ||
+      cleanAmount < 0) {
+    return jsonError(res, 400, "Please complete all required customer, membership and payment fields.");
+  }
+
+  if (!["day", "week", "month"].includes(duration) ||
+      !["single", "double"].includes(session_type) ||
+      !allowedMethods.includes(method)) {
+    return jsonError(res, 400, "Invalid membership or payment option.");
+  }
+
+  const plan = db.prepare(`
+    SELECT id, price FROM membership_plans
+    WHERE duration=? AND session_type=? AND active=1
+  `).get(duration, session_type);
+
+  if (!plan) return jsonError(res, 400, "Selected membership plan is unavailable.");
+
+  const existing = db.prepare("SELECT id FROM customers WHERE email=?").get(cleanEmail);
+  if (existing) return jsonError(res, 409, "A customer with this email already exists.");
+
+  const expiry = expiryDate(start_date, duration);
+  const placeholderPassword = bcrypt.hashSync(crypto.randomBytes(32).toString("hex"), 10);
+
+  const tx = db.transaction(() => {
+    const customer = db.prepare(`
+      INSERT INTO customers
+        (member_id, full_name, dob, gender, phone, email, emergency_contact, password_hash, account_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+    `).run(
+      memberId(), full_name.trim(), dob, gender, phone.trim(),
+      cleanEmail, emergency_contact.trim(), placeholderPassword
+    );
+
+    const membership = db.prepare(`
+      INSERT INTO memberships
+        (customer_id, plan_id, start_date, expiry_date, status)
+      VALUES (?, ?, ?, ?, 'active')
+    `).run(customer.lastInsertRowid, plan.id, start_date, expiry);
+
+    const payment = db.prepare(`
+      INSERT INTO payments
+        (customer_id, membership_id, amount, method, reference, status, verified_at)
+      VALUES (?, ?, ?, ?, ?, 'verified', CURRENT_TIMESTAMP)
+    `).run(
+      customer.lastInsertRowid, membership.lastInsertRowid,
+      Math.round(cleanAmount), method, reference ? String(reference).trim() : null
+    );
+
+    audit("owner", null, "MANUAL_MEMBER_ADDED", "customer", customer.lastInsertRowid, {
+      membershipId: membership.lastInsertRowid,
+      paymentId: payment.lastInsertRowid,
+      method,
+      amount: Math.round(cleanAmount)
+    });
+
+    return {
+      memberId: db.prepare("SELECT member_id FROM customers WHERE id=?")
+        .get(customer.lastInsertRowid).member_id,
+      expiryDate: expiry
+    };
+  });
+
+  const result = tx();
+  res.status(201).json({ ok: true, ...result });
+});
+
 app.get("/api/owner/members", requireOwner, (_req, res) => {
   const rows = db.prepare(`
     SELECT c.id, c.member_id, c.full_name, c.phone, c.email,

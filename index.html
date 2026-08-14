@@ -42,6 +42,10 @@ footer{padding:35px 0;border-top:1px solid var(--line);color:var(--muted);font-s
 .admin-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}.admin-toolbar input{max-width:330px}.empty{padding:30px;text-align:center;color:var(--muted)}
 @media(max-width:800px){.admin-stats{grid-template-columns:repeat(2,1fr)}.detail-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.detail-grid{grid-template-columns:1fr}}
+
+.password-field{position:relative;display:flex;align-items:center}
+.password-field input{flex:1;padding-right:72px}
+.password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;font:inherit;cursor:pointer;padding:6px 8px}
 </style>
 </head>
 <body>
@@ -94,10 +98,10 @@ footer{padding:35px 0;border-top:1px solid var(--line);color:var(--muted);font-s
 <section class="portal" id="portal"><div class="wrap">
 <div class="section-head"><div class="kicker">VMC member platform</div><h2>Manage your membership with confidence.</h2><p>Create your VMC member account, select a membership, submit your payment details and keep your membership information accessible in one place. Payment verification and live notifications will be connected to the production backend in the deployment phase.</p></div>
 <div class="portal-grid">
-<div class="portal-box"><h3>Already a member?</h3><p class="muted">Sign in to view your membership status, payment status, expiry date and account information.</p><button class="btn btn-primary" style="margin-top:18px" onclick="openModal('login')">Member Login</button></div>
-<div class="portal-box"><h3>New to VMC?</h3><p class="muted">Register with the information VMC needs, choose your plan and select how you paid. Your application starts as <strong>Payment Pending</strong> until the owner verifies it.</p><button class="btn btn-dark" style="margin-top:18px" onclick="openModal('register')">Create Member Account</button></div>
+<div class="portal-box"><h3>Already a member?</h3><p class="muted">Sign in to view your membership status, payment status, expiry date and account information.</p><button class="btn btn-primary" style="margin-top:18px" onclick="showMemberLoginComingSoon()">Member Login</button></div>
+<div class="portal-box"><h3>New to VMC?</h3><p class="muted">Register with the information VMC needs, choose your plan and select how you paid. Your application starts as <strong>Payment Pending</strong> until the owner verifies it.</p><button class="btn btn-dark" style="margin-top:18px" onclick="showRegistrationComingSoon()">Customer Registration</button></div>
 </div>
-<div class="notice"><strong>Prototype boundary:</strong> this HTML file demonstrates the complete membership workflow locally. It is not yet a production database, secure authentication service or live email/SMS/WhatsApp gateway. Do not enter sensitive real customer data until the backend is connected.</div>
+<div class="notice"><strong>Online membership registration is coming soon.</strong> For now, please contact VMC directly to enquire or subscribe. VMC staff can record confirmed memberships internally.</div>
 <div class="portal-box" style="margin-top:18px"><div style="display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap"><div><div class="kicker">Owner workspace</div><h3 style="margin:5px 0">VMC Xtreme Administration</h3><p class="muted">Review registrations, verify payments, manage memberships and monitor expiry.</p></div><button class="btn btn-primary" onclick="openOwner()">Open Owner Dashboard</button></div></div>
 </div></section>
 <section id="rules"><div class="wrap"><div class="section-head"><div class="kicker">Member standards</div><h2>VMC Xtreme Gym Rules</h2><p>Every member is expected to help keep the gym safe, respectful, clean and enjoyable for everyone.</p></div><div class="rules-list">
@@ -158,6 +162,12 @@ function showMsg(id,t){let e=$('#'+id);e.style.display='block';e.textContent=t}
 function statusClass(s){return s==='Active'?'active':s==='Expired'?'expired':'pending'}
 function status(m){return m.status==='active'?'Active':m.status==='expired'?'Expired':m.status==='cancelled'?'Cancelled':'Pending payment'}
 function days(e){return Math.ceil((new Date(e+'T00:00:00')-new Date(new Date().toDateString()))/86400000)}
+function showRegistrationComingSoon(){
+  alert("Customer Registration Coming Soon.\n\nPlease contact VMC directly to enquire or subscribe. Our team will be able to assist you.");
+}
+function showMemberLoginComingSoon(){
+  alert("Member Login Coming Soon.\n\nOnline member accounts are being prepared. Please contact VMC directly for membership assistance.");
+}
 function openModal(t='register'){$('#modal').classList.add('show');switchTab(t)}
 function closeModal(){$('#modal').classList.remove('show')}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()})
@@ -169,12 +179,79 @@ async function logout(){await API.request('/api/auth/logout',{method:'POST'});$(
 function openOwner(){$('#ownerModal').classList.add('show');ownerLogin()}
 function closeOwner(){$('#ownerModal').classList.remove('show');API.request('/api/auth/logout',{method:'POST'}).catch(()=>{})}
 $('#ownerModal').addEventListener('click',e=>{if(e.target.id==='ownerModal')closeOwner()})
-function ownerLogin(){$('#adminDashboard').innerHTML=`<div class="portal-box" style="margin-top:18px"><h3>Owner authentication</h3><p class="muted">Authorized VMC owner access only.</p><form id="ownerForm"><div><label>Owner email</label><input id="ownerEmail" type="email" required></div><div style="margin-top:12px"><label>Owner password</label><input id="ownerPass" type="password" required></div><div class="form-actions"><button class="btn btn-primary" type="submit">Open Dashboard</button></div></form><div id="ownerMsg" class="notice" style="display:none"></div></div>`;$('#ownerForm').addEventListener('submit',async e=>{e.preventDefault();let b=e.submitter;b.disabled=true;try{await API.request('/api/auth/owner-login',{method:'POST',body:JSON.stringify({email:$('#ownerEmail').value.trim(),password:$('#ownerPass').value})});await admin()}catch(x){showMsg('ownerMsg',x.message)}finally{b.disabled=false}})}
-async function admin(q=''){try{let a=await API.request('/api/owner/members'),m=a.filter(x=>[x.member_id,x.full_name,x.email,x.phone,x.method,x.payment_status].join(' ').toLowerCase().includes(q.toLowerCase())),ac=a.filter(x=>x.status==='active').length,pe=a.filter(x=>x.status==='pending_payment').length,ex=a.filter(x=>x.status==='expired').length;$('#adminDashboard').innerHTML=`<div class="admin-stats"><div class="admin-stat"><strong>${a.length}</strong><span>Total registrations</span></div><div class="admin-stat"><strong>${ac}</strong><span>Active members</span></div><div class="admin-stat"><strong>${pe}</strong><span>Pending payments</span></div><div class="admin-stat"><strong>${ex}</strong><span>Expired memberships</span></div></div><div class="admin-toolbar"><input id="adminSearch" placeholder="Search name, ID, phone, email..." value="${esc(q)}"><button class="btn btn-dark" onclick="admin($('#adminSearch').value)">Search</button><button class="btn btn-primary" onclick="admin()">Refresh</button><button class="btn btn-dark" onclick="ownerLogout()">Sign out</button></div><div class="admin-table-wrap">${m.length?`<table class="admin-table"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Payment</th><th>Status</th><th>Expiry</th><th>Action</th></tr></thead><tbody>${m.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong><br><span class="muted">${esc(x.member_id)}</span></td><td>${esc(x.duration)}<br>${esc(x.session_type)}</td><td>${money(x.price)}</td><td>${esc(x.method||'—')}<br><span class="muted">${esc(x.payment_status||'—')}</span></td><td><span class="pill ${statusClass(status(x))}">${status(x)}</span></td><td>${esc(x.expiry_date||'—')}</td><td><div class="admin-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${x.payment_status!=='verified'&&x.payment_id?`<button onclick="verify(${x.payment_id})">Verify payment</button>`:''}${x.status==='active'&&x.membership_id?`<button onclick="renew(${x.membership_id})">Renew</button>`:''}</div></td></tr>`).join('')}</tbody></table>`:'<div class="empty">No registrations found.</div>'}</div><div id="memberDetail"></div>`}catch(x){$('#adminDashboard').innerHTML=`<div class="notice">${esc(x.message)}</div>`}}
+function ownerLogin(){$('#adminDashboard').innerHTML=`<div class="portal-box" style="margin-top:18px"><h3>Owner authentication</h3><p class="muted">Authorized VMC owner access only.</p><form id="ownerForm"><div><label>Owner email</label><input id="ownerEmail" type="email" required></div><div style="margin-top:12px"><label>Owner password</label><div class="password-field"><input id="ownerPass" type="password" required><button type="button" class="password-toggle" id="ownerPasswordToggle" aria-label="Show password" aria-pressed="false" onclick="toggleOwnerPassword()">Show</button></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Open Dashboard</button></div></form><div id="ownerMsg" class="notice" style="display:none"></div></div>`;$('#ownerForm').addEventListener('submit',async e=>{e.preventDefault();let b=e.submitter;b.disabled=true;try{await API.request('/api/auth/owner-login',{method:'POST',body:JSON.stringify({email:$('#ownerEmail').value.trim(),password:$('#ownerPass').value})});await admin()}catch(x){showMsg('ownerMsg',x.message)}finally{b.disabled=false}})}
+async function admin(q=''){try{let a=await API.request('/api/owner/members'),m=a.filter(x=>[x.member_id,x.full_name,x.email,x.phone,x.method,x.payment_status].join(' ').toLowerCase().includes(q.toLowerCase())),ac=a.filter(x=>x.status==='active').length,pe=a.filter(x=>x.status==='pending_payment').length,ex=a.filter(x=>x.status==='expired').length;$('#adminDashboard').innerHTML=`<div class="admin-stats"><div class="admin-stat"><strong>${a.length}</strong><span>Total registrations</span></div><div class="admin-stat"><strong>${ac}</strong><span>Active members</span></div><div class="admin-stat"><strong>${pe}</strong><span>Pending payments</span></div><div class="admin-stat"><strong>${ex}</strong><span>Expired memberships</span></div></div><div class="admin-toolbar"><input id="adminSearch" placeholder="Search name, ID, phone, email..." value="${esc(q)}"><button class="btn btn-dark" onclick="admin($('#adminSearch').value)">Search</button><button class="btn btn-primary" onclick="admin()">Refresh</button><button class="btn btn-primary" onclick="addOwnerMember()">Add Customer</button><button class="btn btn-dark" onclick="ownerLogout()">Sign out</button></div><div class="admin-table-wrap">${m.length?`<table class="admin-table"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Payment</th><th>Status</th><th>Expiry</th><th>Action</th></tr></thead><tbody>${m.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong><br><span class="muted">${esc(x.member_id)}</span></td><td>${esc(x.duration)}<br>${esc(x.session_type)}</td><td>${money(x.price)}</td><td>${esc(x.method||'—')}<br><span class="muted">${esc(x.payment_status||'—')}</span></td><td><span class="pill ${statusClass(status(x))}">${status(x)}</span></td><td>${esc(x.expiry_date||'—')}</td><td><div class="admin-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${x.payment_status!=='verified'&&x.payment_id?`<button onclick="verify(${x.payment_id})">Verify payment</button>`:''}${x.status==='active'&&x.membership_id?`<button onclick="renew(${x.membership_id})">Renew</button>`:''}</div></td></tr>`).join('')}</tbody></table>`:'<div class="empty">No registrations found.</div>'}</div><div id="memberDetail"></div>`}catch(x){$('#adminDashboard').innerHTML=`<div class="notice">${esc(x.message)}</div>`}}
+function addOwnerMember(){
+  $('#memberDetail').innerHTML=`<div class="member-detail" style="margin-top:18px">
+    <div class="kicker">Manual subscription entry</div>
+    <h3>Add confirmed customer</h3>
+    <p class="muted">Use this form only after the customer has subscribed and payment has been received.</p>
+    <form id="ownerAddForm">
+      <div class="detail-grid">
+        <div><label>Full name</label><input id="addFullName" required></div>
+        <div><label>Date of birth</label><input id="addDob" type="date" required></div>
+        <div><label>Gender</label><select id="addGender" required><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></div>
+        <div><label>Phone</label><input id="addPhone" type="tel" required></div>
+        <div><label>Email</label><input id="addEmail" type="email" required></div>
+        <div><label>Emergency contact</label><input id="addEmergency" required></div>
+        <div><label>Membership duration</label><select id="addDuration" required><option value="day">Day</option><option value="week">Week</option><option value="month" selected>Month</option></select></div>
+        <div><label>Session type</label><select id="addSession" required><option value="single">Single</option><option value="double">Double</option></select></div>
+        <div><label>Start date</label><input id="addStart" type="date" required></div>
+        <div><label>Amount paid (MWK)</label><input id="addAmount" type="number" min="0" step="1" required></div>
+        <div><label>Payment method</label><select id="addMethod" required><option value="">Select</option><option>Airtel Money</option><option>TNM Mpamba</option><option>National Bank</option><option>Cash</option></select></div>
+        <div><label>Payment reference (optional)</label><input id="addReference"></div>
+      </div>
+      <div class="form-actions" style="margin-top:18px">
+        <button class="btn btn-primary" type="submit">Save Customer</button>
+        <button class="btn btn-dark" type="button" onclick="admin()">Cancel</button>
+      </div>
+      <div id="ownerAddMsg" class="notice" style="display:none;margin-top:12px"></div>
+    </form>
+  </div>`;
+  const start=$('#addStart');
+  start.value=new Date().toISOString().slice(0,10);
+  $('#ownerAddForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const button=e.submitter; button.disabled=true;
+    try{
+      const payload={
+        full_name:$('#addFullName').value.trim(),
+        dob:$('#addDob').value,
+        gender:$('#addGender').value,
+        phone:$('#addPhone').value.trim(),
+        email:$('#addEmail').value.trim(),
+        emergency_contact:$('#addEmergency').value.trim(),
+        duration:$('#addDuration').value,
+        session_type:$('#addSession').value,
+        start_date:$('#addStart').value,
+        amount:Number($('#addAmount').value),
+        method:$('#addMethod').value,
+        reference:$('#addReference').value.trim()
+      };
+      const d=await API.request('/api/owner/members',{method:'POST',body:JSON.stringify(payload)});
+      alert(`Customer added successfully.\nMember ID: ${d.memberId}\nExpiry: ${d.expiryDate}`);
+      await admin();
+    }catch(x){
+      const e2=$('#ownerAddMsg'); e2.style.display='block'; e2.textContent=x.message;
+    }finally{button.disabled=false;}
+  });
+}
+
 async function verify(id){if(!confirm('Verify this payment and activate the membership?'))return;try{await API.request('/api/owner/payments/'+id+'/verify',{method:'POST'});await admin($('#adminSearch')?.value||'')}catch(x){alert(x.message)}}
 async function renew(id){if(!confirm('Create a new renewal membership?'))return;try{let d=await API.request('/api/owner/memberships/'+id+'/renew',{method:'POST'});alert(`Renewal created. Start: ${d.startDate}. Expiry: ${d.expiryDate}. Payment remains pending.`);await admin($('#adminSearch')?.value||'')}catch(x){alert(x.message)}}
 async function view(id){try{let a=await API.request('/api/owner/members'),x=a.find(y=>y.member_id===id);if(!x)return;$('#memberDetail').innerHTML=`<div class="member-detail"><div class="kicker">Member record</div><h3>${esc(x.full_name)} · ${esc(x.member_id)}</h3><div class="detail-grid"><div class="detail-item"><span>Phone</span><strong>${esc(x.phone)}</strong></div><div class="detail-item"><span>Email</span><strong>${esc(x.email)}</strong></div><div class="detail-item"><span>Membership</span><strong>${esc(x.duration)} · ${esc(x.session_type)}</strong></div><div class="detail-item"><span>Amount</span><strong>${money(x.price)}</strong></div><div class="detail-item"><span>Payment method</span><strong>${esc(x.method||'—')}</strong></div><div class="detail-item"><span>Reference</span><strong>${esc(x.reference||'Not supplied')}</strong></div><div class="detail-item"><span>Start</span><strong>${esc(x.start_date||'—')}</strong></div><div class="detail-item"><span>Expiry</span><strong>${esc(x.expiry_date||'—')}</strong></div></div></div>`}catch(x){alert(x.message)}}
 async function ownerLogout(){await API.request('/api/auth/logout',{method:'POST'}).catch(()=>{});ownerLogin()}
+function toggleOwnerPassword(){
+  const input = document.getElementById('ownerPassword');
+  const button = document.getElementById('ownerPasswordToggle');
+  if (!input || !button) return;
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  button.textContent = showing ? 'Show' : 'Hide';
+  button.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  button.setAttribute('aria-pressed', String(!showing));
+}
+
 </script>
 
 

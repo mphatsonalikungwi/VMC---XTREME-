@@ -197,6 +197,7 @@ $$('#navList a').forEach(a=>a.addEventListener('click',()=>$('#navList').classLi
 const API={async request(url,opt={}){const r=await fetch('https://vmc-xtreme-1.onrender.com'+url,{credentials:'include',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);return d}};
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function money(n){return 'K '+Number(n||0).toLocaleString('en-MW')}
+function shortDate(v){if(!v)return '—';const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}
 function showMsg(id,t){let e=$('#'+id);e.style.display='block';e.textContent=t}
 function statusClass(s){return s==='Active'?'active':s==='Expired'?'expired':'pending'}
 function status(m){return m.status==='active'?'Active':m.status==='expired'?'Expired':m.status==='cancelled'?'Cancelled':'Pending payment'}

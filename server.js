@@ -440,11 +440,41 @@ app.post("/api/owner/memberships/:membershipId/renew", requireOwner, async (req,
     if (!membership) return jsonError(res, 404, "Membership not found.");
     const startDate = new Date().toISOString().slice(0, 10);
     const expiry = expiryDate(startDate, membership.duration);
+    const method = String(req.body?.method || "").trim();
+    const reference = String(req.body?.reference || "").trim() || null;
+    const allowedMethods = new Set(["Airtel Money","TNM Mpamba","National Bank","Cash"]);
+    if (!allowedMethods.has(method)) {
+      return jsonError(res, 400, "A valid payment method is required.");
+    }
+    const amount = Number(membership.price);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return jsonError(res, 400, "Invalid membership plan price.");
+    }
+    let created;
+    let payment;
     await withTransaction(async (client) => {
-      const created = await one("INSERT INTO memberships (customer_id, plan_id, start_date, expiry_date, status) VALUES ($1,$2,$3,$4,'pending_payment') RETURNING id", [membership.customer_id, membership.plan_id, startDate, expiry], client);
-      await audit("owner", null, "RENEWAL_CREATED", "membership", created.id, { startDate, expiry }, client);
+      created = await one(
+        "INSERT INTO memberships (customer_id, plan_id, start_date, expiry_date, status) VALUES ($1,$2,$3,$4,'pending_payment') RETURNING id",
+        [membership.customer_id, membership.plan_id, startDate, expiry],
+        client
+      );
+      payment = await one(
+        "INSERT INTO payments (customer_id, membership_id, amount, method, reference, status) VALUES ($1,$2,$3,$4,$5,'pending') RETURNING id",
+        [membership.customer_id, created.id, amount, method, reference],
+        client
+      );
+      await audit("owner", null, "RENEWAL_CREATED", "membership", created.id, {
+        startDate, expiry, paymentId: payment.id, amount, method, reference
+      }, client);
     });
-    res.status(201).json({ startDate, expiryDate: expiry, status: "pending_payment" });
+    res.status(201).json({
+      membershipId: created.id,
+      paymentId: payment.id,
+      startDate,
+      expiryDate: expiry,
+      status: "pending_payment",
+      paymentStatus: "pending"
+    });
   } catch (error) { next(error); }
 });
 

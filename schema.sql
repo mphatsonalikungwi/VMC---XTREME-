@@ -86,3 +86,21 @@ CREATE INDEX IF NOT EXISTS idx_memberships_customer ON memberships(customer_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_expiry ON memberships(expiry_date);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 CREATE INDEX IF NOT EXISTS idx_notifications_schedule ON notification_log(scheduled_for, status);
+
+
+CREATE TABLE IF NOT EXISTS owner_accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  full_name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'manager'
+    CHECK(role IN ('super_owner','manager','staff')),
+  status TEXT NOT NULL DEFAULT 'active'
+    CHECK(status IN ('active','inactive')),
+  is_primary INTEGER NOT NULL DEFAULT 0 CHECK(is_primary IN (0,1)),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_owner_accounts_status ON owner_accounts(status);
+CREATE INDEX IF NOT EXISTS idx_owner_accounts_role ON owner_accounts(role);

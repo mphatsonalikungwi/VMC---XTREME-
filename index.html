@@ -186,7 +186,54 @@ function openOwner(){$('#ownerModal').classList.add('show');ownerLogin()}
 function closeOwner(){$('#ownerModal').classList.remove('show');API.request('/api/auth/logout',{method:'POST'}).catch(()=>{})}
 $('#ownerModal').addEventListener('click',e=>{if(e.target.id==='ownerModal')closeOwner()})
 function ownerLogin(){$('#adminDashboard').innerHTML=`<div class="portal-box" style="margin-top:18px"><h3>Owner authentication</h3><p class="muted">Authorized VMC owner access only.</p><form id="ownerForm"><div><label>Owner email</label><input id="ownerEmail" type="email" required></div><div style="margin-top:12px"><label>Owner password</label><div class="password-field"><input id="ownerPass" type="password" required><button type="button" class="password-toggle" id="ownerPasswordToggle" aria-label="Show password" aria-pressed="false" onclick="toggleOwnerPassword()">Show</button></div></div><div class="form-actions"><button class="btn btn-primary" type="submit">Open Dashboard</button></div></form><div id="ownerMsg" class="notice" style="display:none"></div></div>`;$('#ownerForm').addEventListener('submit',async e=>{e.preventDefault();let b=e.submitter;b.disabled=true;try{await API.request('/api/auth/owner-login',{method:'POST',body:JSON.stringify({email:$('#ownerEmail').value.trim(),password:$('#ownerPass').value})});await admin()}catch(x){showMsg('ownerMsg',x.message)}finally{b.disabled=false}})}
-async function admin(q=''){try{let a=await API.request('/api/owner/members'),m=a.filter(x=>[x.member_id,x.full_name,x.email,x.phone,x.method,x.payment_status].join(' ').toLowerCase().includes(q.toLowerCase())),ac=a.filter(x=>x.status==='active').length,pe=a.filter(x=>x.status==='pending_payment').length,ex=a.filter(x=>x.status==='expired').length;$('#adminDashboard').innerHTML=`<div class="admin-stats"><div class="admin-stat"><strong>${a.length}</strong><span>Total registrations</span></div><div class="admin-stat"><strong>${ac}</strong><span>Active members</span></div><div class="admin-stat"><strong>${pe}</strong><span>Pending payments</span></div><div class="admin-stat"><strong>${ex}</strong><span>Expired memberships</span></div></div><div class="admin-toolbar"><input id="adminSearch" placeholder="Search name, ID, phone, email..." value="${esc(q)}"><button class="btn btn-dark" onclick="admin($('#adminSearch').value)">Search</button><button class="btn btn-primary" onclick="admin()">Refresh</button><button class="btn btn-primary" onclick="addOwnerMember()">Add Customer</button><button class="btn btn-dark" onclick="ownerLogout()">Sign out</button></div><div class="admin-table-wrap">${m.length?`<table class="admin-table"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Payment</th><th>Status</th><th>Expiry</th><th>Action</th></tr></thead><tbody>${m.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong><br><span class="muted">${esc(x.member_id)}</span></td><td>${esc(x.duration)}<br>${esc(x.session_type)}</td><td>${money(x.price)}</td><td>${esc(x.method||'—')}<br><span class="muted">${esc(x.payment_status||'—')}</span></td><td><span class="pill ${statusClass(status(x))}">${status(x)}</span></td><td>${esc(x.expiry_date||'—')}</td><td><div class="admin-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${x.payment_status!=='verified'&&x.payment_id?`<button onclick="verify(${x.payment_id})">Verify payment</button>`:''}${x.status==='active'&&x.membership_id?`<button onclick="renew(${x.membership_id})">Renew</button>`:''}</div></td></tr>`).join('')}</tbody></table>`:'<div class="empty">No registrations found.</div>'}</div><div id="memberDetail"></div>`}catch(x){$('#adminDashboard').innerHTML=`<div class="notice">${esc(x.message)}</div>`}}
+async function admin(q=''){try{let a=await API.request('/api/owner/members'),m=a.filter(x=>[x.member_id,x.full_name,x.email,x.phone,x.method,x.payment_status].join(' ').toLowerCase().includes(q.toLowerCase())),ac=a.filter(x=>x.status==='active').length,pe=a.filter(x=>x.status==='pending_payment').length,ex=a.filter(x=>x.status==='expired').length;$('#adminDashboard').innerHTML=`<div class="admin-stats"><div class="admin-stat"><strong>${a.length}</strong><span>Total registrations</span></div><div class="admin-stat"><strong>${ac}</strong><span>Active members</span></div><div class="admin-stat"><strong>${pe}</strong><span>Pending payments</span></div><div class="admin-stat"><strong>${ex}</strong><span>Expired memberships</span></div></div><div class="admin-toolbar"><input id="adminSearch" placeholder="Search name, ID, phone, email..." value="${esc(q)}"><button class="btn btn-dark" onclick="admin($('#adminSearch').value)">Search</button><button class="btn btn-primary" onclick="admin()">Refresh</button><button class="btn btn-primary" onclick="addOwnerMember()">Add Customer</button><button class="btn btn-primary" onclick="ownerManagement()">Staff &amp; Access</button><button class="btn btn-dark" onclick="ownerLogout()">Sign out</button></div><div class="admin-table-wrap">${m.length?`<table class="admin-table"><thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Payment</th><th>Status</th><th>Expiry</th><th>Action</th></tr></thead><tbody>${m.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong><br><span class="muted">${esc(x.member_id)}</span></td><td>${esc(x.duration)}<br>${esc(x.session_type)}</td><td>${money(x.price)}</td><td>${esc(x.method||'—')}<br><span class="muted">${esc(x.payment_status||'—')}</span></td><td><span class="pill ${statusClass(status(x))}">${status(x)}</span></td><td>${esc(x.expiry_date||'—')}</td><td><div class="admin-actions"><button onclick="view('${esc(x.member_id)}')">View</button>${x.payment_status!=='verified'&&x.payment_id?`<button onclick="verify(${x.payment_id})">Verify payment</button>`:''}${x.status==='active'&&x.membership_id?`<button onclick="renew(${x.membership_id})">Renew</button>`:''}</div></td></tr>`).join('')}</tbody></table>`:'<div class="empty">No registrations found.</div>'}</div><div id="memberDetail"></div>`}catch(x){$('#adminDashboard').innerHTML=`<div class="notice">${esc(x.message)}</div>`}}
+async function ownerManagement(){
+  try{
+    const me=await API.request('/api/owner/profile');
+    if(me.role!=='super_owner'){
+      $('#memberDetail').innerHTML='<div class="notice" style="margin-top:18px">Only the Super Owner can manage staff and owner access.</div>';
+      return;
+    }
+    const accounts=await API.request('/api/owner/accounts');
+    $('#memberDetail').innerHTML=`<div class="member-detail" style="margin-top:18px">
+      <div class="kicker">Staff & access management</div>
+      <h3>VMC Owner & Staff Accounts</h3>
+      <p class="muted">The primary owner remains the highest-level account. Managers and staff can be deactivated without deleting their history.</p>
+      <form id="ownerCreateForm">
+        <div class="detail-grid">
+          <div><label>Full name</label><input id="staffName" required></div>
+          <div><label>Email</label><input id="staffEmail" type="email" required></div>
+          <div><label>Role</label><select id="staffRole"><option value="manager">Manager</option><option value="staff">Staff</option></select></div>
+          <div><label>Temporary password</label><input id="staffPassword" type="password" minlength="8" required></div>
+        </div>
+        <div class="form-actions" style="margin-top:14px"><button class="btn btn-primary" type="submit">Create Account</button><button class="btn btn-dark" type="button" onclick="admin()">Back</button></div>
+        <div id="staffMsg" class="notice" style="display:none;margin-top:12px"></div>
+      </form>
+      <div class="admin-table-wrap" style="margin-top:18px"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>
+      ${accounts.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong>${x.is_primary?' <span class="muted">(Primary)</span>':''}</td><td>${esc(x.email)}</td><td>${esc(x.role.replace('_',' '))}</td><td>${esc(x.status)}</td><td>${x.is_primary?'—':`<button onclick="toggleOwnerStatus(${x.id},'${x.status==='active'?'inactive':'active'}')">${x.status==='active'?'Deactivate':'Activate'}</button>`}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>`;
+    $('#ownerCreateForm').addEventListener('submit',async e=>{
+      e.preventDefault(); const b=e.submitter; b.disabled=true;
+      try{
+        await API.request('/api/owner/accounts',{method:'POST',body:JSON.stringify({
+          full_name:$('#staffName').value.trim(), email:$('#staffEmail').value.trim(),
+          role:$('#staffRole').value, password:$('#staffPassword').value
+        })});
+        alert('Account created successfully.');
+        ownerManagement();
+      }catch(x){showMsg('staffMsg',x.message)}finally{b.disabled=false}
+    });
+  }catch(x){$('#memberDetail').innerHTML=`<div class="notice">${esc(x.message)}</div>`}
+}
+async function toggleOwnerStatus(id,status){
+  if(!confirm(`${status==='active'?'Activate':'Deactivate'} this account?`)) return;
+  try{
+    await API.request(`/api/owner/accounts/${id}/status`,{method:'PATCH',body:JSON.stringify({status})});
+    ownerManagement();
+  }catch(x){alert(x.message)}
+}
+
 function addOwnerMember(){
   $('#memberDetail').innerHTML=`<div class="member-detail" style="margin-top:18px">
     <div class="kicker">Manual subscription entry</div>

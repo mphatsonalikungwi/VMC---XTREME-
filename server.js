@@ -31,6 +31,19 @@ const seed = fs.readFileSync(path.join(__dirname, "seed.sql"), "utf8");
 db.exec(schema);
 db.exec(seed);
 
+// Bootstrap the primary owner from Render environment variables once.
+// Additional owners are stored securely in the database.
+if (process.env.OWNER_EMAIL && process.env.OWNER_PASSWORD) {
+  const existingPrimary = db.prepare("SELECT id FROM owner_accounts WHERE is_primary=1 LIMIT 1").get();
+  if (!existingPrimary) {
+    const hash = bcrypt.hashSync(process.env.OWNER_PASSWORD, 12);
+    db.prepare(`
+      INSERT INTO owner_accounts (full_name, email, password_hash, role, status, is_primary)
+      VALUES (?, ?, ?, 'super_owner', 'active', 1)
+    `).run("Primary Owner", process.env.OWNER_EMAIL.trim().toLowerCase(), hash);
+  }
+}
+
 app.use(cors({
   origin: "https://mphatsonalikungwi.github.io",
   credentials: true
@@ -96,6 +109,16 @@ function requireAuth(req, res, next) {
 function requireOwner(req, res, next) {
   requireAuth(req, res, () => {
     if (req.user.role !== "owner") return jsonError(res, 403, "Owner access required.");
+    next();
+  });
+}
+
+function requireSuperOwner(req, res, next) {
+  requireOwner(req, res, () => {
+    const owner = db.prepare("SELECT id, role, status FROM owner_accounts WHERE id=?").get(req.user.sub);
+    if (!owner || owner.status !== "active" || owner.role !== "super_owner") {
+      return jsonError(res, 403, "Super Owner access required.");
+    }
     next();
   });
 }
@@ -214,16 +237,23 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 app.post("/api/auth/owner-login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!process.env.OWNER_EMAIL || !process.env.OWNER_PASSWORD) {
-    return jsonError(res, 503, "Owner credentials are not configured.");
-  }
-  if (email !== process.env.OWNER_EMAIL || password !== process.env.OWNER_PASSWORD) {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const password = String(req.body.password || "");
+  if (!email || !password) return jsonError(res, 400, "Email and password are required.");
+
+  const owner = db.prepare(`
+    SELECT id, full_name, email, password_hash, role, status
+    FROM owner_accounts WHERE email=?
+  `).get(email);
+
+  if (!owner || owner.status !== "active" || !(await bcrypt.compare(password, owner.password_hash))) {
     return jsonError(res, 401, "Invalid owner credentials.");
   }
-  const token = signToken({ sub: "owner", role: "owner" });
+
+  const token = signToken({ sub: owner.id, role: "owner", ownerRole: owner.role });
   res.cookie("vmc_session", token, authCookieOptions());
-  res.json({ role: "owner" });
+  audit("owner", owner.id, "OWNER_LOGIN", "owner", owner.id, { role: owner.role });
+  res.json({ role: "owner", ownerRole: owner.role, fullName: owner.full_name });
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -330,6 +360,73 @@ app.post("/api/owner/members", requireOwner, (req, res) => {
 
   const result = tx();
   res.status(201).json({ ok: true, ...result });
+});
+
+
+app.get("/api/owner/profile", requireOwner, (req, res) => {
+  const owner = db.prepare(`
+    SELECT id, full_name, email, role, status, is_primary, created_at
+    FROM owner_accounts WHERE id=?
+  `).get(req.user.sub);
+  if (!owner) return jsonError(res, 404, "Owner account not found.");
+  res.json(owner);
+});
+
+app.get("/api/owner/accounts", requireSuperOwner, (_req, res) => {
+  const rows = db.prepare(`
+    SELECT id, full_name, email, role, status, is_primary, created_at
+    FROM owner_accounts ORDER BY is_primary DESC, id ASC
+  `).all();
+  res.json(rows);
+});
+
+app.post("/api/owner/accounts", requireSuperOwner, async (req, res) => {
+  const fullName = String(req.body.full_name || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const password = String(req.body.password || "");
+  const role = String(req.body.role || "manager");
+
+  if (!fullName || !email || password.length < 8) {
+    return jsonError(res, 400, "Name, email and a password of at least 8 characters are required.");
+  }
+  if (!["manager", "staff"].includes(role)) {
+    return jsonError(res, 400, "New accounts can only be Manager or Staff.");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return jsonError(res, 400, "Enter a valid email address.");
+  }
+  if (db.prepare("SELECT id FROM owner_accounts WHERE email=?").get(email)) {
+    return jsonError(res, 409, "An owner/staff account with that email already exists.");
+  }
+
+  const hash = await bcrypt.hash(password, 12);
+  const result = db.prepare(`
+    INSERT INTO owner_accounts (full_name, email, password_hash, role, status)
+    VALUES (?, ?, ?, ?, 'active')
+  `).run(fullName, email, hash, role);
+
+  audit("owner", req.user.sub, "OWNER_ACCOUNT_CREATED", "owner", result.lastInsertRowid, { role, email });
+  res.status(201).json({ ok: true, id: result.lastInsertRowid });
+});
+
+app.patch("/api/owner/accounts/:id/status", requireSuperOwner, (req, res) => {
+  const id = Number(req.params.id);
+  const status = String(req.body.status || "");
+  if (!Number.isInteger(id) || !["active", "inactive"].includes(status)) {
+    return jsonError(res, 400, "Invalid owner status.");
+  }
+  const target = db.prepare("SELECT id, is_primary, full_name FROM owner_accounts WHERE id=?").get(id);
+  if (!target) return jsonError(res, 404, "Owner account not found.");
+  if (target.is_primary && status !== "active") {
+    return jsonError(res, 400, "The primary Super Owner cannot be deactivated.");
+  }
+  if (id === Number(req.user.sub) && status !== "active") {
+    return jsonError(res, 400, "You cannot deactivate your own account.");
+  }
+
+  db.prepare("UPDATE owner_accounts SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?").run(status, id);
+  audit("owner", req.user.sub, status === "active" ? "OWNER_ACCOUNT_ACTIVATED" : "OWNER_ACCOUNT_DEACTIVATED", "owner", id, { status });
+  res.json({ ok: true });
 });
 
 app.get("/api/owner/members", requireOwner, (_req, res) => {

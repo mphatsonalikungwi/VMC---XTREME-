@@ -286,48 +286,27 @@ app.get("/api/me", requireAuth, (req, res) => {
 
 
 app.get("/api/owner/dashboard/stats", requireOwner, (req, res) => {
-  // Dashboard metrics are derived from the current VMC database schema.
-  const memberTotal = db.prepare("SELECT COUNT(*) AS count FROM members").get().count;
-  const memberRows = db.prepare("SELECT * FROM members ORDER BY rowid DESC LIMIT 1000").all();
-
-  // Current member records use the existing membership/payment fields.
-  const active = memberRows.filter(m => String(m.status || "").toLowerCase() === "active").length;
-  const expired = memberRows.filter(m => String(m.status || "").toLowerCase() === "expired").length;
-
-  const payments = db.prepare("SELECT * FROM payments ORDER BY rowid DESC LIMIT 2000").all();
-  const amountOf = p => Number(p.amount || p.payment_amount || p.total || 0) || 0;
-  const dateOf = p => p.payment_date || p.paid_at || p.created_at || p.date || null;
-  const today = new Date().toISOString().slice(0,10);
-  const month = today.slice(0,7);
-  const paymentsToday = payments.filter(p => String(dateOf(p) || "").slice(0,10) === today)
-    .reduce((sum,p) => sum + amountOf(p), 0);
-  const paymentsMonth = payments.filter(p => String(dateOf(p) || "").slice(0,7) === month)
-    .reduce((sum,p) => sum + amountOf(p), 0);
-
-  const paymentMethods = {};
-  for (const p of payments) {
-    const method = p.payment_method || p.method || "Other";
-    if (!paymentMethods[method]) paymentMethods[method] = {method, total:0, count:0};
-    paymentMethods[method].total += amountOf(p);
-    paymentMethods[method].count += 1;
-  }
-
-  const recentMembers = memberRows.slice(0,8).map(m => ({
-    id: m.id,
-    full_name: m.full_name || m.name || m.customer_name || "—",
-    phone: m.phone || m.phone_number || "—",
-    membership_id: m.membership_id || m.member_id || "—",
-    status: m.status || "—",
-    start_date: m.start_date || m.join_date || m.created_at || "—",
-    expiry_date: m.expiry_date || m.end_date || m.membership_end || "—"
-  }));
-
-  res.json({
-    ok: true,
-    stats: {total: memberTotal, active, expired, expiringSoon: 0, paymentsToday, paymentsMonth},
-    paymentMethods: Object.values(paymentMethods).sort((a,b) => b.total - a.total),
-    recentMembers
-  });
+  const total = db.prepare("SELECT COUNT(*) AS count FROM customers").get().count;
+  const active = db.prepare("SELECT COUNT(*) AS count FROM memberships WHERE LOWER(status)='active' AND (expiry_date IS NULL OR date(expiry_date) >= date('now'))").get().count;
+  const expired = db.prepare("SELECT COUNT(*) AS count FROM memberships WHERE LOWER(status)='expired' OR (expiry_date IS NOT NULL AND date(expiry_date) < date('now'))").get().count;
+  const expiringSoon = db.prepare("SELECT COUNT(*) AS count FROM memberships WHERE expiry_date IS NOT NULL AND date(expiry_date) >= date('now') AND date(expiry_date) <= date('now','+30 day') AND LOWER(status)='active'").get().count;
+  const paymentsToday = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE date(created_at)=date('now') AND LOWER(COALESCE(status,''))='verified'").get().total;
+  const paymentsMonth = db.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE strftime('%Y-%m',created_at)=strftime('%Y-%m','now') AND LOWER(COALESCE(status,''))='verified'").get().total;
+  const paymentMethods = db.prepare("SELECT COALESCE(method,'Other') AS method, COALESCE(SUM(amount),0) AS total, COUNT(*) AS count FROM payments WHERE LOWER(COALESCE(status,''))='verified' GROUP BY method ORDER BY total DESC").all();
+  const recentMembers = db.prepare(`
+    SELECT c.id, c.full_name, c.phone, c.member_id AS membership_id,
+           COALESCE(m.status,'No membership') AS status,
+           m.start_date, m.expiry_date
+    FROM customers c
+    LEFT JOIN memberships m ON m.id = (
+      SELECT m2.id FROM memberships m2
+      WHERE m2.customer_id=c.id
+      ORDER BY m2.id DESC LIMIT 1
+    )
+    ORDER BY c.id DESC
+    LIMIT 8
+  `).all();
+  res.json({ok:true,stats:{total,active,expired,expiringSoon,paymentsToday,paymentsMonth},paymentMethods,recentMembers});
 });
 
 app.post("/api/owner/members", requireOwner, (req, res) => {

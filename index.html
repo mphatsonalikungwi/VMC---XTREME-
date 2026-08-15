@@ -324,7 +324,7 @@ async function admin(q=''){
     const pe=a.filter(x=>x.status==='pending_payment').length;
     const ex=a.filter(x=>x.status==='expired').length;
     const pendingText=pe?`${pe} payment${pe===1?'':'s'} waiting for verification`:'No payments waiting for verification';
-    const memberActions=x=>isSuperOwner?`${x.status==='pending_payment'&&!x.payment_id?`<button onclick="addPendingPayment(${x.membership_id})">Add payment</button>`:''}${x.payment_status!=='verified'&&x.payment_id?`<button onclick="verify(${x.payment_id})">Verify payment</button>`:''}${x.status==='active'&&x.membership_id?`<button onclick="renew(${x.membership_id})">Renew</button>`:''}`:'';
+    const memberActions=x=>isSuperOwner?`${x.status==='pending_payment'&&!x.payment_id?`<button onclick="addPendingPayment(${x.membership_id})">Add payment</button>`:''}${x.payment_status!=='verified'&&x.payment_id?`<button onclick="verify(${x.payment_id})">Verify payment</button>`:''}${x.status==='active'&&x.membership_id?`<button onclick="renew(${x.membership_id})">Renew</button>`:''}<button class="btn-danger" onclick="deleteCustomer(${x.id},'${esc(x.full_name)}')">Delete</button>`:'';
     $('#adminDashboard').innerHTML=`
       <div class="owner-head">
         <div><div class="owner-badge"></div><h2>VMC Xtreme Admin Dashboard</h2><p class="muted">Manage customers, memberships, payments and staff.</p></div>
@@ -401,14 +401,14 @@ async function ownerManagement(){
         <div class="detail-grid">
           <div><label>Full name</label><input id="staffName" required></div>
           <div><label>Email</label><input id="staffEmail" type="email" required></div>
-          <div><label>Role</label><select id="staffRole"><option value="manager">Manager</option><option value="staff">Staff</option></select></div>
+          <div><label>Role</label><select id="staffRole"><option value="manager">Manager</option><option value="staff">Staff</option><option value="super_owner">Super Owner</option></select></div>
           <div><label>Temporary password</label><input id="staffPassword" type="password" minlength="8" required></div>
         </div>
         <div class="form-actions" style="margin-top:14px"><button class="btn btn-primary" type="submit">Create Account</button><button class="btn btn-dark" type="button" onclick="admin()">Back</button></div>
         <div id="staffMsg" class="notice" style="display:none;margin-top:12px"></div>
       </form>
       <div class="admin-table-wrap" style="margin-top:18px"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>
-      ${accounts.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong>${x.is_primary?' <span class="muted">(Primary)</span>':''}</td><td>${esc(x.email)}</td><td>${esc(x.role.replace('_',' '))}</td><td>${esc(x.status)}</td><td>${x.is_primary?'—':`<button onclick="toggleOwnerStatus(${x.id},'${x.status==='active'?'inactive':'active'}')">${x.status==='active'?'Deactivate':'Activate'}</button>`}</td></tr>`).join('')}
+      ${accounts.map(x=>`<tr><td><strong>${esc(x.full_name)}</strong>${x.is_primary?' <span class="muted">(Primary)</span>':''}</td><td>${esc(x.email)}</td><td>${esc(x.role.replace('_',' '))}</td><td>${esc(x.status)}</td><td>${x.is_primary?'—':`<button onclick="toggleOwnerStatus(${x.id},'${x.status==='active'?'inactive':'active'}')">${x.status==='active'?'Deactivate':'Activate'}</button> <button class="btn-danger" onclick="deleteOwnerAccount(${x.id},'${esc(x.full_name)}')">Delete</button>`}</td></tr>`).join('')}
       </tbody></table></div>
     </div>`;
     $('#ownerCreateForm').addEventListener('submit',async e=>{
@@ -424,6 +424,17 @@ async function ownerManagement(){
     });
   }catch(x){$('#memberDetail').innerHTML=`<div class="notice">${esc(x.message)}</div>`}
 }
+async function deleteOwnerAccount(id,name){
+  if(!confirm(`Delete the account for ${name} permanently? This cannot be undone.`)) return;
+  const typed=prompt('Type DELETE to confirm permanent deletion:');
+  if(typed!=='DELETE'){ if(typed!==null) alert('Deletion cancelled.'); return; }
+  try{
+    await API.request('/api/owner/accounts/'+id,{method:'DELETE'});
+    alert('Account deleted.');
+    await ownerManagement();
+  }catch(x){alert(x.message)}
+}
+
 async function toggleOwnerStatus(id,status){
   if(!confirm(`${status==='active'?'Activate':'Deactivate'} this account?`)) return;
   try{
@@ -486,6 +497,17 @@ function addOwnerMember(){
       const e2=$('#ownerAddMsg'); e2.style.display='block'; e2.textContent=x.message;
     }finally{button.disabled=false;}
   });
+}
+
+async function deleteCustomer(id,name){
+  if(!confirm(`Delete ${name} permanently? This will remove the customer, memberships, payments and rules records. This cannot be undone.`)) return;
+  const typed=prompt('Type DELETE to confirm permanent deletion:');
+  if(typed!=='DELETE'){ if(typed!==null) alert('Deletion cancelled.'); return; }
+  try{
+    await API.request('/api/owner/members/'+id,{method:'DELETE'});
+    alert('Customer deleted.');
+    await admin();
+  }catch(x){alert(x.message)}
 }
 
 async function addPendingPayment(membershipId){

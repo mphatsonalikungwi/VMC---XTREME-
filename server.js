@@ -62,8 +62,8 @@ async function initializeDatabase() {
   const seed = fs.readFileSync(path.join(__dirname, "seed.sql"), "utf8");
   await exec(schema);
   await exec(seed);
-  // Password recovery fields are additive and safe for existing PostgreSQL data.
-  await exec(`ALTER TABLE customers
+  // Manager/Staff password-reset fields are additive and safe for existing PostgreSQL data.
+  await exec(`ALTER TABLE owner_accounts
     ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT,
     ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ,
@@ -311,41 +311,36 @@ app.post("/api/auth/change-password", requireCustomer, async (req, res, next) =>
   } catch (error) { next(error); }
 });
 
-app.post("/api/auth/forgot-password", passwordResetLimiter, async (req, res, next) => {
+app.post("/api/auth/staff-forgot-password", passwordResetLimiter, async (req, res, next) => {
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
-    if (!email) return jsonError(res, 400, "Email address is required.");
-    const customer = await one("SELECT id FROM customers WHERE email=$1 AND account_status='active'", [email]);
-    // Do not reveal whether an email belongs to a customer account.
-    if (customer) {
-      await exec("UPDATE customers SET password_reset_requested_at=CURRENT_TIMESTAMP, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1", [customer.id]);
-      await audit("customer", customer.id, "PASSWORD_RESET_REQUESTED", "customer", customer.id);
+    const generic = "If the Manager or Staff account exists, a reset request has been sent to the Super Owner.";
+    if (!email) return res.json({ ok: true, message: generic });
+    const account = await one("SELECT id, role, status FROM owner_accounts WHERE email=$1", [email]);
+    if (account && ["manager", "staff"].includes(account.role) && account.status === "active") {
+      await exec("UPDATE owner_accounts SET password_reset_requested_at=CURRENT_TIMESTAMP, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$1", [account.id]);
     }
-    res.json({ ok: true, message: "If the account exists, a password reset request has been sent to VMC for verification." });
+    res.json({ ok: true, message: generic });
   } catch (error) { next(error); }
 });
 
-app.post("/api/auth/reset-password", passwordResetLimiter, async (req, res, next) => {
+app.post("/api/auth/staff-reset-password", passwordResetLimiter, async (req, res, next) => {
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
-    const code = String(req.body?.code || "").trim().toUpperCase();
+    const code = String(req.body?.code || "").trim();
     const newPassword = String(req.body?.newPassword || "");
     const confirmPassword = String(req.body?.confirmPassword || "");
     if (!email || !code || !newPassword || !confirmPassword) return jsonError(res, 400, "Email, reset code and all password fields are required.");
     if (newPassword.length < 8) return jsonError(res, 400, "New password must be at least 8 characters.");
     if (newPassword !== confirmPassword) return jsonError(res, 400, "New passwords do not match.");
-    const customer = await one("SELECT id, password_hash, password_reset_token_hash, password_reset_expires_at, password_reset_used_at, account_status FROM customers WHERE email=$1", [email]);
-    if (!customer || customer.account_status !== "active" || !customer.password_reset_token_hash || customer.password_reset_used_at || !customer.password_reset_expires_at || new Date(customer.password_reset_expires_at).getTime() < Date.now()) {
-      return jsonError(res, 400, "The reset code is invalid or has expired. Please request a new reset.");
-    }
-    if (hashResetToken(code) !== customer.password_reset_token_hash) return jsonError(res, 400, "The reset code is invalid or has expired. Please request a new reset.");
-    if (await bcrypt.compare(newPassword, customer.password_hash)) return jsonError(res, 400, "New password must be different from your previous password.");
+    const account = await one("SELECT id, full_name, role, status, password_hash, password_reset_token_hash, password_reset_expires_at, password_reset_used_at FROM owner_accounts WHERE email=$1", [email]);
+    if (!account || !["manager", "staff"].includes(account.role) || account.status !== "active" || !account.password_reset_token_hash || account.password_reset_used_at || !account.password_reset_expires_at || new Date(account.password_reset_expires_at).getTime() < Date.now()) return jsonError(res, 400, "The reset code is invalid or has expired. Please request a new reset.");
+    if (hashResetToken(code) !== account.password_reset_token_hash) return jsonError(res, 400, "The reset code is invalid or has expired. Please request a new reset.");
+    if (await bcrypt.compare(newPassword, account.password_hash)) return jsonError(res, 400, "New password must be different from your previous password.");
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await exec("UPDATE customers SET password_hash=$1, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=CURRENT_TIMESTAMP, password_reset_requested_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$2", [passwordHash, customer.id]);
-    await audit("customer", customer.id, "PASSWORD_RESET_COMPLETED", "customer", customer.id);
-    const token = signToken({ sub: customer.id, role: "customer" });
-    res.cookie("vmc_session", token, authCookieOptions());
-    res.json({ ok: true, message: "Password reset successfully." });
+    await exec("UPDATE owner_accounts SET password_hash=$1, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=CURRENT_TIMESTAMP, password_reset_requested_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$2", [passwordHash, account.id]);
+    await audit("owner", account.id, "STAFF_PASSWORD_RESET_COMPLETED", "owner", account.id, { role: account.role });
+    res.json({ ok: true, message: "Password reset successfully. You can now sign in." });
   } catch (error) { next(error); }
 });
 
@@ -360,6 +355,25 @@ app.post("/api/auth/owner-login", async (req, res, next) => {
     res.cookie("vmc_session", token, authCookieOptions());
     await audit("owner", owner.id, "OWNER_LOGIN", "owner", owner.id, { role: owner.role });
     res.json({ role: "owner", ownerRole: owner.role, fullName: owner.full_name });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/auth/owner-change-password", requireOwner, async (req, res, next) => {
+  try {
+    const currentPassword = String(req.body?.currentPassword || "");
+    const newPassword = String(req.body?.newPassword || "");
+    const confirmPassword = String(req.body?.confirmPassword || "");
+    if (!currentPassword || !newPassword || !confirmPassword) return jsonError(res, 400, "All password fields are required.");
+    if (newPassword.length < 8) return jsonError(res, 400, "New password must be at least 8 characters.");
+    if (newPassword !== confirmPassword) return jsonError(res, 400, "New passwords do not match.");
+    const account = await one("SELECT id, role, status, password_hash FROM owner_accounts WHERE id=$1", [req.user.sub]);
+    if (!account || account.status !== "active") return jsonError(res, 401, "Account is inactive.");
+    if (!(await bcrypt.compare(currentPassword, account.password_hash))) return jsonError(res, 401, "Current password is incorrect.");
+    if (await bcrypt.compare(newPassword, account.password_hash)) return jsonError(res, 400, "New password must be different from your current password.");
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await exec("UPDATE owner_accounts SET password_hash=$1, password_reset_token_hash=NULL, password_reset_expires_at=NULL, password_reset_used_at=NULL, password_reset_requested_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=$2", [passwordHash, account.id]);
+    await audit("owner", account.id, "OWNER_PASSWORD_CHANGED", "owner", account.id, { role: account.role });
+    res.json({ ok: true, message: "Password changed successfully." });
   } catch (error) { next(error); }
 });
 
@@ -389,32 +403,26 @@ app.get("/api/me", requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.get("/api/owner/password-reset-requests", requireOwner, async (_req, res, next) => {
+app.get("/api/owner/password-reset-requests", requireSuperOwner, async (_req, res, next) => {
   try {
-    const rows = await many(`
-      SELECT id, member_id, full_name, email, password_reset_requested_at
-      FROM customers
-      WHERE password_reset_requested_at IS NOT NULL
-        AND password_reset_used_at IS NULL
-      ORDER BY password_reset_requested_at DESC
-    `);
+    const rows = await many(`SELECT id, full_name, email, role, password_reset_requested_at FROM owner_accounts WHERE role IN ('manager','staff') AND status='active' AND password_reset_requested_at IS NOT NULL AND password_reset_used_at IS NULL ORDER BY password_reset_requested_at DESC`);
     res.json(rows);
   } catch (error) { next(error); }
 });
 
-app.post("/api/owner/password-reset-requests/:customerId/approve", requireOwner, async (req, res, next) => {
+app.post("/api/owner/password-reset-requests/:accountId/approve", requireSuperOwner, async (req, res, next) => {
   try {
-    const id = Number(req.params.customerId);
-    if (!Number.isInteger(id)) return jsonError(res, 400, "Invalid customer.");
-    const customer = await one("SELECT id, member_id, full_name, email FROM customers WHERE id=$1 AND account_status='active'", [id]);
-    if (!customer) return jsonError(res, 404, "Customer not found or inactive.");
-    const pending = await one("SELECT password_reset_requested_at FROM customers WHERE id=$1 AND password_reset_requested_at IS NOT NULL AND password_reset_used_at IS NULL", [id]);
-    if (!pending) return jsonError(res, 400, "No pending password reset request exists for this customer.");
+    const id = Number(req.params.accountId);
+    if (!Number.isInteger(id)) return jsonError(res, 400, "Invalid staff account.");
+    const account = await one("SELECT id, full_name, email, role, status FROM owner_accounts WHERE id=$1 AND role IN ('manager','staff')", [id]);
+    if (!account || account.status !== 'active') return jsonError(res, 404, "Active Manager/Staff account not found.");
+    const pending = await one("SELECT password_reset_requested_at FROM owner_accounts WHERE id=$1 AND password_reset_requested_at IS NOT NULL AND password_reset_used_at IS NULL", [id]);
+    if (!pending) return jsonError(res, 400, "No pending password reset request exists for this account.");
     const code = crypto.randomBytes(5).toString("hex").toUpperCase();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    await exec("UPDATE customers SET password_reset_token_hash=$1, password_reset_expires_at=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3", [hashResetToken(code), expiresAt, id]);
-    await audit("owner", req.user.sub, "PASSWORD_RESET_APPROVED", "customer", id, { expiresAt: expiresAt.toISOString() });
-    res.json({ ok: true, memberId: customer.member_id, fullName: customer.full_name, email: customer.email, code, expiresAt: expiresAt.toISOString() });
+    await exec("UPDATE owner_accounts SET password_reset_token_hash=$1, password_reset_expires_at=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3", [hashResetToken(code), expiresAt, id]);
+    await audit("owner", req.user.sub, "STAFF_PASSWORD_RESET_APPROVED", "owner", id, { role: account.role, expiresAt: expiresAt.toISOString() });
+    res.json({ ok: true, fullName: account.full_name, email: account.email, role: account.role, code, expiresAt: expiresAt.toISOString() });
   } catch (error) { next(error); }
 });
 
@@ -490,11 +498,11 @@ app.post("/api/owner/accounts", requireSuperOwner, async (req, res, next) => {
     const password = String(req.body.password || "");
     const role = String(req.body.role || "manager");
     if (!fullName || !email || password.length < 8) return jsonError(res, 400, "Name, email and a password of at least 8 characters are required.");
-    if (!["manager", "staff"].includes(role)) return jsonError(res, 400, "New accounts can only be Manager or Staff.");
+    if (!["manager", "staff", "super_owner"].includes(role)) return jsonError(res, 400, "Invalid account role.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonError(res, 400, "Enter a valid email address.");
     if (await one("SELECT id FROM owner_accounts WHERE email=$1", [email])) return jsonError(res, 409, "An owner/staff account with that email already exists.");
     const hash = await bcrypt.hash(password, 12);
-    const result = await one("INSERT INTO owner_accounts (full_name, email, password_hash, role, status) VALUES ($1,$2,$3,$4,'active') RETURNING id", [fullName, email, hash, role]);
+    const result = await one("INSERT INTO owner_accounts (full_name, email, password_hash, role, status, is_primary) VALUES ($1,$2,$3,$4,'active',false) RETURNING id", [fullName, email, hash, role]);
     await audit("owner", req.user.sub, "OWNER_ACCOUNT_CREATED", "owner", result.id, { role, email });
     res.status(201).json({ ok: true, id: result.id });
   } catch (error) { next(error); }
@@ -511,6 +519,30 @@ app.patch("/api/owner/accounts/:id/status", requireSuperOwner, async (req, res, 
     if (id === Number(req.user.sub) && status !== "active") return jsonError(res, 400, "You cannot deactivate your own account.");
     await exec("UPDATE owner_accounts SET status=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2", [status, id]);
     await audit("owner", req.user.sub, status === "active" ? "OWNER_ACCOUNT_ACTIVATED" : "OWNER_ACCOUNT_DEACTIVATED", "owner", id, { status });
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+app.delete("/api/owner/accounts/:id", requireSuperOwner, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return jsonError(res, 400, "Invalid account.");
+    if (id === Number(req.user.sub)) return jsonError(res, 400, "You cannot delete your own account.");
+
+    const target = await one("SELECT id, full_name, role, is_primary FROM owner_accounts WHERE id=$1", [id]);
+    if (!target) return jsonError(res, 404, "Owner account not found.");
+    if (target.is_primary) return jsonError(res, 400, "The primary Super Owner cannot be deleted.");
+
+    if (target.role === "super_owner") {
+      const count = await one("SELECT COUNT(*)::int AS count FROM owner_accounts WHERE role='super_owner' AND status='active'");
+      if (Number(count?.count || 0) <= 1) return jsonError(res, 400, "At least one active Super Owner must remain.");
+    }
+
+    await withTransaction(async (client) => {
+      await audit("owner", req.user.sub, "OWNER_ACCOUNT_DELETED", "owner", target.id, { role: target.role, fullName: target.full_name }, client);
+      await exec("DELETE FROM owner_accounts WHERE id=$1", [target.id], client);
+    });
+
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
@@ -533,7 +565,26 @@ app.get("/api/owner/members", requireOwner, async (_req, res, next) => {
 });
 
 
-app.post("/api/owner/memberships/:membershipId/payment", requireOwner, async (req, res, next) => {
+app.delete("/api/owner/members/:id", requireSuperOwner, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return jsonError(res, 400, "Invalid customer.");
+    const customer = await one("SELECT id, member_id, full_name FROM customers WHERE id=$1", [id]);
+    if (!customer) return jsonError(res, 404, "Customer not found.");
+
+    await withTransaction(async (client) => {
+      await audit("owner", req.user.sub, "CUSTOMER_DELETED", "customer", customer.id, { memberId: customer.member_id, fullName: customer.full_name }, client);
+      await exec("DELETE FROM rules_acceptance WHERE customer_id=$1", [customer.id], client);
+      await exec("DELETE FROM payments WHERE customer_id=$1", [customer.id], client);
+      await exec("DELETE FROM memberships WHERE customer_id=$1", [customer.id], client);
+      await exec("DELETE FROM customers WHERE id=$1", [customer.id], client);
+    });
+
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/owner/memberships/:membershipId/payment", requireSuperOwner, async (req, res, next) => {
   try {
     const membership = await one(`
       SELECT m.id, m.customer_id, m.status, p.price
@@ -590,7 +641,7 @@ app.post("/api/owner/memberships/:membershipId/payment", requireOwner, async (re
   } catch (error) { next(error); }
 });
 
-app.post("/api/owner/payments/:paymentId/verify", requireOwner, async (req, res, next) => {
+app.post("/api/owner/payments/:paymentId/verify", requireSuperOwner, async (req, res, next) => {
   try {
     const payment = await one("SELECT * FROM payments WHERE id=$1", [req.params.paymentId]);
     if (!payment) return jsonError(res, 404, "Payment not found.");
@@ -603,7 +654,7 @@ app.post("/api/owner/payments/:paymentId/verify", requireOwner, async (req, res,
   } catch (error) { next(error); }
 });
 
-app.post("/api/owner/memberships/:membershipId/renew", requireOwner, async (req, res, next) => {
+app.post("/api/owner/memberships/:membershipId/renew", requireSuperOwner, async (req, res, next) => {
   try {
     const membership = await one("SELECT m.*, p.duration, p.price FROM memberships m JOIN membership_plans p ON p.id=m.plan_id WHERE m.id=$1", [req.params.membershipId]);
     if (!membership) return jsonError(res, 404, "Membership not found.");

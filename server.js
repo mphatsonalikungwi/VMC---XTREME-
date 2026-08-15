@@ -349,9 +349,9 @@ app.post("/api/auth/owner-login", async (req, res, next) => {
     const email = String(req.body.email || "").trim().toLowerCase();
     const password = String(req.body.password || "");
     if (!email || !password) return jsonError(res, 400, "Email and password are required.");
-    const owner = await one(`SELECT id, full_name, email, password_hash, role, status FROM owner_accounts WHERE email=$1`, [email]);
+    const owner = await one(`SELECT id, full_name, email, password_hash, role, status, is_primary FROM owner_accounts WHERE email=$1`, [email]);
     if (!owner || owner.status !== "active" || !(await bcrypt.compare(password, owner.password_hash))) return jsonError(res, 401, "Invalid owner credentials.");
-    const token = signToken({ sub: owner.id, role: "owner", ownerRole: owner.role });
+    const token = signToken({ sub: owner.id, role: "owner", ownerRole: owner.role, isPrimary: owner.is_primary === true });
     res.cookie("vmc_session", token, authCookieOptions());
     await audit("owner", owner.id, "OWNER_LOGIN", "owner", owner.id, { role: owner.role });
     res.json({ role: "owner", ownerRole: owner.role, fullName: owner.full_name });
@@ -485,9 +485,12 @@ app.get("/api/owner/profile", requireOwner, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.get("/api/owner/accounts", requireSuperOwner, async (_req, res, next) => {
+app.get("/api/owner/accounts", requireSuperOwner, async (req, res, next) => {
   try {
-    res.json(await many("SELECT id, full_name, email, role, status, is_primary, created_at FROM owner_accounts ORDER BY is_primary DESC, id ASC"));
+    const sql = req.user.isPrimary
+      ? "SELECT id, full_name, email, role, status, is_primary, created_at FROM owner_accounts ORDER BY is_primary DESC, id ASC"
+      : "SELECT id, full_name, email, role, status, is_primary, created_at FROM owner_accounts WHERE is_primary=false ORDER BY role, id ASC";
+    res.json(await many(sql));
   } catch (error) { next(error); }
 });
 
@@ -499,6 +502,7 @@ app.post("/api/owner/accounts", requireSuperOwner, async (req, res, next) => {
     const role = String(req.body.role || "manager");
     if (!fullName || !email || password.length < 8) return jsonError(res, 400, "Name, email and a password of at least 8 characters are required.");
     if (!["manager", "staff", "super_owner"].includes(role)) return jsonError(res, 400, "Invalid account role.");
+    if (role === "super_owner" && !req.user.isPrimary) return jsonError(res, 403, "Only the Primary Super Owner can create another Super Owner.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonError(res, 400, "Enter a valid email address.");
     if (await one("SELECT id FROM owner_accounts WHERE email=$1", [email])) return jsonError(res, 409, "An owner/staff account with that email already exists.");
     const hash = await bcrypt.hash(password, 12);
@@ -513,10 +517,11 @@ app.patch("/api/owner/accounts/:id/status", requireSuperOwner, async (req, res, 
     const id = Number(req.params.id);
     const status = String(req.body.status || "");
     if (!Number.isInteger(id) || !["active", "inactive"].includes(status)) return jsonError(res, 400, "Invalid owner status.");
-    const target = await one("SELECT id, is_primary, full_name FROM owner_accounts WHERE id=$1", [id]);
+    const target = await one("SELECT id, is_primary, role, full_name FROM owner_accounts WHERE id=$1", [id]);
     if (!target) return jsonError(res, 404, "Owner account not found.");
     if (target.is_primary && status !== "active") return jsonError(res, 400, "The primary Super Owner cannot be deactivated.");
     if (id === Number(req.user.sub) && status !== "active") return jsonError(res, 400, "You cannot deactivate your own account.");
+    if (target.role === "super_owner" && !req.user.isPrimary) return jsonError(res, 403, "Only the Primary Super Owner can manage Super Owner accounts.");
     await exec("UPDATE owner_accounts SET status=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2", [status, id]);
     await audit("owner", req.user.sub, status === "active" ? "OWNER_ACCOUNT_ACTIVATED" : "OWNER_ACCOUNT_DEACTIVATED", "owner", id, { status });
     res.json({ ok: true });
@@ -534,6 +539,7 @@ app.delete("/api/owner/accounts/:id", requireSuperOwner, async (req, res, next) 
     if (target.is_primary) return jsonError(res, 400, "The primary Super Owner cannot be deleted.");
 
     if (target.role === "super_owner") {
+      if (!req.user.isPrimary) return jsonError(res, 403, "Only the Primary Super Owner can manage Super Owner accounts.");
       const count = await one("SELECT COUNT(*)::int AS count FROM owner_accounts WHERE role='super_owner' AND status='active'");
       if (Number(count?.count || 0) <= 1) return jsonError(res, 400, "At least one active Super Owner must remain.");
     }

@@ -349,7 +349,7 @@ async function admin(q=''){
         <button class="btn btn-dark" onclick="admin($('#adminSearch').value)">Search</button>
         <button class="btn btn-primary" onclick="admin()">Refresh</button>
         <button class="btn btn-primary" onclick="addOwnerMember()">Add Customer</button>
-        <button class="btn btn-dark" onclick="showOwnerChangePassword()">Change Password</button>
+        <button class="btn btn-dark" onclick="showOwnerChangePassword()">Change Password</button><button class="btn btn-dark" onclick="ownerLogout()">Log out</button>
         ${isSuperOwner?`<button class="btn btn-dark" onclick="ownerManagement()">Staff &amp; Access</button>`:''}
       </div>
       ${isSuperOwner?`<div class="owner-panel" style="margin:0 0 14px"><div class="owner-panel-head"><h3>Manager &amp; Staff Password Reset Requests</h3><button class="btn btn-dark" onclick="loadPasswordResetRequests()">Refresh</button></div><div class="owner-panel-body"><div id="passwordResetRequests">Loading…</div></div></div>`:''}
@@ -401,7 +401,7 @@ async function ownerManagement(){
         <div class="detail-grid">
           <div><label>Full name</label><input id="staffName" required></div>
           <div><label>Email</label><input id="staffEmail" type="email" required></div>
-          <div><label>Role</label><select id="staffRole"><option value="manager">Manager</option><option value="staff">Staff</option><option value="super_owner">Super Owner</option></select></div>
+          <div><label>Role</label><select id="staffRole"><option value="manager">Manager</option><option value="staff">Staff</option>${me.is_primary?'<option value="super_owner">Super Owner</option>':''}</select></div>
           <div><label>Temporary password</label><input id="staffPassword" type="password" minlength="8" required></div>
         </div>
         <div class="form-actions" style="margin-top:14px"><button class="btn btn-primary" type="submit">Create Account</button><button class="btn btn-dark" type="button" onclick="admin()">Back</button></div>

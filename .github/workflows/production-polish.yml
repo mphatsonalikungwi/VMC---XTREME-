@@ -2,8 +2,6 @@ name: Production frontend polish
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'index.html'
 permissions:
   contents: write
 jobs:
@@ -17,20 +15,12 @@ jobs:
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text()
-
-          # The public site is hosted on GitHub Pages; authenticated APIs live on Render.
           s = s.replace("const API_BASE=(window.VMC_API_BASE||'').replace(/\\/+$/,'');", "const API_BASE='https://vmc-xtreme-1.onrender.com';")
-
-          # Remove development credit from the public footer.
           s = s.replace(' Designed by Mpha30.', '')
-
-          # Add a genuinely new, lightweight section between the hero/stats and services.
           marker = '<section id="services"><div class="wrap">'
           if 'id="approach"' not in s and marker in s:
               section = '''<section id="approach" class="approach-section"><div class="wrap"><div class="section-head"><div class="kicker">The VMC approach</div><h2>A better way to use your gym time.</h2><p>No complicated promises. Come in, know what you are working on, and leave knowing you did something useful.</p></div><div class="approach-grid"><article class="approach-card"><span class="approach-number">01</span><h3>Choose your focus</h3><p>Strength, conditioning, weight loss, muscle building or simply getting started — pick the reason you came in.</p></article><article class="approach-card approach-card-featured"><span class="approach-number">02</span><h3>Train with purpose</h3><p>Use the equipment, sessions and guidance available at VMC to turn your time in the gym into consistent work.</p></article><article class="approach-card"><span class="approach-number">03</span><h3>Keep showing up</h3><p>Progress is built from repeat visits, good habits and a training environment that makes consistency easier.</p></article></div></div></section>'''
               s = s.replace(marker, section + '\n' + marker, 1)
-
-          # Give the membership choices a distinct editorial/pricing-board treatment.
           style_marker = '</style>\n</head>'
           style = '''<style id="vmc-human-polish">
 .approach-section{padding-top:78px;padding-bottom:72px;background:linear-gradient(180deg,#0a0d10,#0d1115)}
@@ -52,7 +42,6 @@ jobs:
 '''
           if 'id="vmc-human-polish"' not in s and style_marker in s:
               s = s.replace(style_marker, style + style_marker, 1)
-
           p.write_text(s)
           PY
       - name: Commit polished frontend

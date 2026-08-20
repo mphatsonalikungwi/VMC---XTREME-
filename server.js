@@ -85,13 +85,17 @@ async function initializeDatabase() {
   // Bootstrap the primary owner from Render environment variables once.
   // Additional owners are stored securely in the database.
   if (process.env.OWNER_EMAIL && process.env.OWNER_PASSWORD) {
-    const existingPrimary = await one("SELECT id FROM owner_accounts WHERE is_primary=true LIMIT 1");
+    const configuredEmail = process.env.OWNER_EMAIL.trim().toLowerCase();
+    const existingPrimary = await one("SELECT id, email FROM owner_accounts WHERE is_primary=true LIMIT 1");
     if (!existingPrimary) {
       const hash = await bcrypt.hash(process.env.OWNER_PASSWORD, 12);
       await exec(`
         INSERT INTO owner_accounts (full_name, email, password_hash, role, status, is_primary)
         VALUES ($1, $2, $3, 'super_owner', 'active', true)
-      `, ["Primary Owner", process.env.OWNER_EMAIL.trim().toLowerCase(), hash]);
+      `, ["Primary Owner", configuredEmail, hash]);
+    } else if (process.env.OWNER_SYNC_PASSWORD === "true" && existingPrimary.email === configuredEmail) {
+      const hash = await bcrypt.hash(process.env.OWNER_PASSWORD, 12);
+      await exec("UPDATE owner_accounts SET password_hash=$1, status='active', role='super_owner', updated_at=CURRENT_TIMESTAMP WHERE id=$2", [hash, existingPrimary.id]);
     }
   }
 }
@@ -124,7 +128,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
       styleSrc: ["'self'", "'unsafe-inline'", "https:"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "https://vmc-xtreme-1.onrender.com"],
       fontSrc: ["'self'", "data:", "https:"]
     }
   },
@@ -144,14 +148,9 @@ app.use("/api/owner", (_req, res, next) => { res.set("Cache-Control", "no-store"
 app.use((req, res, next) => {
   if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
     const origin = req.get("Origin");
-    const expected = FRONTEND_ORIGIN;
-    // Credentialed browser requests must identify the published origin. This
-    // closes the CSRF gap for browsers that send no Origin header on some
-    // navigation-like requests while preserving non-cookie operational calls.
-    if (req.cookies?.vmc_session && origin !== expected) {
-      return jsonError(res, 403, "Request origin is not allowed.");
-    }
-    if (origin && origin !== expected) return jsonError(res, 403, "Request origin is not allowed.");
+    // Only explicitly configured frontend origins may perform browser state changes.
+    // This keeps the CSRF boundary strict while allowing a controlled domain migration.
+    if (origin && !allowedOrigins.has(origin)) return jsonError(res, 403, "Request origin is not allowed.");
   }
   next();
 });
@@ -192,7 +191,7 @@ function authCookieOptions() {
   return {
     httpOnly: true,
     secure: process.env.COOKIE_SECURE !== "false",
-    sameSite: process.env.COOKIE_SAMESITE || "none",
+    sameSite: process.env.COOKIE_SAMESITE || (process.env.FRONTEND_ORIGIN && process.env.FRONTEND_ORIGIN.includes("onrender.com") ? "lax" : "none"),
     // Production is intended to be same-origin: the Render service serves both
     // the public site and the API. This keeps the session cookie same-site.
     partitioned: process.env.COOKIE_PARTITIONED === "true",

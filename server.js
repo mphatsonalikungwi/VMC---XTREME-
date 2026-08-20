@@ -214,10 +214,8 @@ app.get("/api/plans", async (_req, res, next) => {
 
 app.post("/api/auth/register", async (req, res, next) => {
   try {
-    return jsonError(res, 503, "Customer registration is coming soon. Please contact VMC directly.");
-
     if (process.env.PUBLIC_REGISTRATION_ENABLED !== "true") {
-      return jsonError(res, 503, "Customer Registration Coming Soon.");
+      return jsonError(res, 503, "Customer registration is coming soon. Please contact VMC directly.");
     }
     const { fullName, dob, gender, phone, email, emergencyContact,
       duration, sessionType, paymentMethod, paymentReference,
@@ -518,7 +516,7 @@ app.patch("/api/owner/accounts/:id/status", requireSuperOwner, async (req, res, 
     const status = String(req.body.status || "");
     if (!Number.isInteger(id) || !["active", "inactive"].includes(status)) return jsonError(res, 400, "Invalid owner status.");
     const target = await one("SELECT id, is_primary, role, full_name FROM owner_accounts WHERE id=$1", [id]);
-    if (!target) return jsonError(res, 404, "Owner account not found.");
+    if (!target || (target.is_primary && !req.user.isPrimary)) return jsonError(res, 404, "Owner account not found.");
     if (target.is_primary && status !== "active") return jsonError(res, 400, "The primary Super Owner cannot be deactivated.");
     if (id === Number(req.user.sub) && status !== "active") return jsonError(res, 400, "You cannot deactivate your own account.");
     if (target.role === "super_owner" && !req.user.isPrimary) return jsonError(res, 403, "Only the Primary Super Owner can manage Super Owner accounts.");
@@ -535,7 +533,7 @@ app.delete("/api/owner/accounts/:id", requireSuperOwner, async (req, res, next) 
     if (id === Number(req.user.sub)) return jsonError(res, 400, "You cannot delete your own account.");
 
     const target = await one("SELECT id, full_name, role, is_primary FROM owner_accounts WHERE id=$1", [id]);
-    if (!target) return jsonError(res, 404, "Owner account not found.");
+    if (!target || (target.is_primary && !req.user.isPrimary)) return jsonError(res, 404, "Owner account not found.");
     if (target.is_primary) return jsonError(res, 400, "The primary Super Owner cannot be deleted.");
 
     if (target.role === "super_owner") {

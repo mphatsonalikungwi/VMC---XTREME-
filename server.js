@@ -96,15 +96,23 @@ async function initializeDatabase() {
   }
 }
 
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
-if (process.env.NODE_ENV === "production" && !FRONTEND_ORIGIN) {
+const configuredOrigins = String(process.env.FRONTEND_ORIGIN || "").split(",").map(v => v.trim()).filter(Boolean);
+const allowedOrigins = new Set(configuredOrigins.length ? configuredOrigins : ["http://localhost:3000"]);
+if (process.env.NODE_ENV === "production" && configuredOrigins.length === 0) {
   console.error("FRONTEND_ORIGIN is required in production.");
   process.exit(1);
 }
-app.use(cors({
-  origin: FRONTEND_ORIGIN,
-  credentials: true
-}));
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    callback(null, allowedOrigins.has(origin));
+  },
+  credentials: true,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+};
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {

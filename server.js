@@ -287,27 +287,13 @@ async function audit(actorType, actorId, action, entityType, entityId, metadata 
   `, [actorType, actorId || null, action, entityType, entityId || null, JSON.stringify(metadata)], client);
 }
 
-let databaseReady = false;
-
-app.get("/api/health", (_req, res) => {
-  // Liveness endpoint: Render can verify that the Node process is alive
-  // without waiting for a potentially slow database connection.
-  res.status(200).json({
-    ok: true,
-    service: "VMC Xtreme Membership Platform",
-    version: "4.0.1",
-    database: databaseReady ? "ready" : "initializing"
-  });
-});
-
-app.get("/api/ready", async (_req, res) => {
+app.get("/api/health", async (_req, res) => {
   try {
     await one("SELECT 1 AS ok");
-    databaseReady = true;
-    res.json({ ok: true, database: "ready" });
+    res.json({ ok: true, service: "VMC Xtreme Membership Platform", version: "4.0.0", database: "postgresql" });
   } catch (error) {
-    databaseReady = false;
-    res.status(503).json({ ok: false, database: "unavailable" });
+    console.error(error);
+    res.status(503).json({ ok: false, service: "VMC Xtreme Membership Platform", database: "unavailable" });
   }
 });
 
@@ -852,25 +838,37 @@ app.use((err, _req, res, _next) => {
   return jsonError(res, 500, "Unexpected server error.");
 });
 
-function start() {
+let databaseReady = false;
+
+app.get("/api/health", (_req, res) => {
+  if (!databaseReady) return res.status(503).json({ ok: false, status: "starting" });
+  return res.status(200).json({ ok: true, status: "ready" });
+});
+
+async function start() {
   if (!DATABASE_URL) {
     console.error("DATABASE_URL is required for the PostgreSQL backend.");
     process.exit(1);
   }
 
-  // Bind the HTTP port immediately so Render can detect the service quickly.
-  // Database initialization happens after the process is reachable.
-  app.listen(PORT, async () => {
-    console.log(`VMC Xtreme platform running at http://localhost:${PORT}`);
-    try {
-      await initializeDatabase();
-      databaseReady = true;
-      console.log("VMC Xtreme database initialization complete.");
-    } catch (error) {
-      databaseReady = false;
-      console.error("VMC Xtreme database initialization failed:", error);
-    }
+  // Bind immediately so Render can detect the service without waiting on
+  // database initialization. Database setup happens before the app is
+  // advertised as ready through /api/health.
+  const server = app.listen(PORT, () => {
+    console.log(`VMC Xtreme platform listening on port ${PORT}`);
   });
+
+  try {
+    await initializeDatabase();
+    databaseReady = true;
+    console.log("VMC Xtreme database initialization complete.");
+  } catch (error) {
+    console.error("Database initialization failed:", error);
+    server.close(() => process.exit(1));
+  }
 }
 
-start();
+start().catch((error) => {
+  console.error("Failed to start VMC Xtreme:", error);
+  process.exit(1);
+});

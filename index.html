@@ -101,27 +101,6 @@ async function api(path,opt={}){
   if(!r.ok) throw Error(d.error||`Request failed (${r.status})`);
   return d;
 }
-const burger=document.getElementById('burger');
-const navList=document.getElementById('nav');
-function closeMobileNav(){
-  if(!navList || !burger) return;
-  navList.classList.remove('open');
-  burger.setAttribute('aria-expanded','false');
-  burger.setAttribute('aria-label','Open menu');
-}
-function toggleMobileNav(){
-  if(!navList || !burger) return;
-  const open=navList.classList.toggle('open');
-  burger.setAttribute('aria-expanded',String(open));
-  burger.setAttribute('aria-label',open?'Close menu':'Open menu');
-}
-burger?.addEventListener('click',toggleMobileNav);
-navList?.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMobileNav));
-window.addEventListener('resize',()=>{if(window.innerWidth>1000) closeMobileNav();});
-document.addEventListener('click',e=>{
-  if(!navList?.classList.contains('open')) return;
-  if(!e.target.closest('nav')) closeMobileNav();
-});
 function msg(id,t){const e=$('#'+id);e.style.display='block';e.textContent=t}
 function openModal(tab='register'){const m=$('#modal');m.classList.add('show');switchTab(tab)}function closeModal(){$('#modal').classList.remove('show')}function switchTab(t){$$('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));$$('.pane').forEach(p=>p.classList.remove('active'));$('#'+t+'Pane').classList.add('active')}
 $('#burger').onclick=()=>{const open=$('#nav').classList.toggle('open');$('#burger').setAttribute('aria-expanded',String(open));$('#burger').setAttribute('aria-label',open?'Close menu':'Open menu')};

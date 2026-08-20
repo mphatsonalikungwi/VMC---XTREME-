@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: vmc-xtreme-api
+    name: vmc-xtreme-1
     runtime: node
     plan: free
     buildCommand: npm install --omit=dev --no-audit --no-fund
@@ -10,11 +10,11 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_ORIGIN
-        value: https://vmc-xtreme-api.onrender.com
+        value: https://vmcxtreme.github.io
       - key: COOKIE_SECURE
         value: "true"
       - key: COOKIE_SAMESITE
-        value: lax
+        value: none
       - key: COOKIE_PARTITIONED
         value: "false"
       - key: PUBLIC_REGISTRATION_ENABLED

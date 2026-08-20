@@ -191,9 +191,11 @@ function authCookieOptions() {
   return {
     httpOnly: true,
     secure: process.env.COOKIE_SECURE !== "false",
-    sameSite: process.env.COOKIE_SAMESITE || (process.env.FRONTEND_ORIGIN && process.env.FRONTEND_ORIGIN.includes("onrender.com") ? "lax" : "none"),
-    // Production is intended to be same-origin: the Render service serves both
-    // the public site and the API. This keeps the session cookie same-site.
+    // This deployment is always cross-site: the frontend is on GitHub Pages,
+    // the API is on Render. SameSite=None is required for the session cookie
+    // to be sent on cross-site requests. Only override via COOKIE_SAMESITE
+    // if you genuinely serve frontend and API from the same origin.
+    sameSite: process.env.COOKIE_SAMESITE || "none",
     partitioned: process.env.COOKIE_PARTITIONED === "true",
     maxAge: 8 * 60 * 60 * 1000,
     path: "/"

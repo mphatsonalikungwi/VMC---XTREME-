@@ -1,7 +1,5 @@
 require("dotenv").config();
 
-const path = require("path");
-const fs = require("fs");
 const crypto = require("crypto");
 const express = require("express");
 const cookieParser = require("cookie-parser");
@@ -60,17 +58,30 @@ async function withTransaction(work) {
 }
 
 async function initializeDatabase() {
-  const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
-  const seed = fs.readFileSync(path.join(__dirname, "seed.sql"), "utf8");
-  await exec(schema);
-  await exec(seed);
-  // Manager/Staff password-reset fields are additive and safe for existing PostgreSQL data.
+  // Production database schema is managed in Supabase, not applied from files at every startup.
+  // This keeps the public web repository from exposing database DDL and avoids schema changes
+  // being executed implicitly during a web-service restart. The startup checks below are
+  // additive/idempotent only.
   await exec(`ALTER TABLE owner_accounts
     ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT,
     ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS password_reset_used_at TIMESTAMPTZ`);
 
+  // Seed only the fixed public membership plans if they do not already exist.
+  await exec(`
+    INSERT INTO membership_plans (duration, session_type, price)
+    VALUES
+      ('day','single',2000),
+      ('day','double',3000),
+      ('week','single',8000),
+      ('week','double',10000),
+      ('month','single',30000),
+      ('month','double',35000)
+    ON CONFLICT (duration, session_type) DO NOTHING
+  `);
+
+  // Manager/Staff password-reset fields are additive and safe for existing PostgreSQL data.
   // Bootstrap the primary owner from Render environment variables once.
   // Additional owners are stored securely in the database.
   if (process.env.OWNER_EMAIL && process.env.OWNER_PASSWORD) {

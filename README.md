@@ -40,7 +40,7 @@ Copy `.env.example` to `.env` for local configuration and replace every placehol
 
 ## Database
 
-On startup the backend applies `schema.sql` and `seed.sql`. Existing PostgreSQL data is preserved by the `CREATE TABLE IF NOT EXISTS` statements and additive password-reset columns.
+The production database schema is managed in Supabase. The backend does not execute public SQL/DDL files on startup; it performs only idempotent additive checks and seeds the fixed membership-plan rows if they are missing.
 
 ## Production registration checklist
 

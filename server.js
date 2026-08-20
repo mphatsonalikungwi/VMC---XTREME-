@@ -287,13 +287,27 @@ async function audit(actorType, actorId, action, entityType, entityId, metadata 
   `, [actorType, actorId || null, action, entityType, entityId || null, JSON.stringify(metadata)], client);
 }
 
-app.get("/api/health", async (_req, res) => {
+let databaseReady = false;
+
+app.get("/api/health", (_req, res) => {
+  // Liveness endpoint: Render can verify that the Node process is alive
+  // without waiting for a potentially slow database connection.
+  res.status(200).json({
+    ok: true,
+    service: "VMC Xtreme Membership Platform",
+    version: "4.0.1",
+    database: databaseReady ? "ready" : "initializing"
+  });
+});
+
+app.get("/api/ready", async (_req, res) => {
   try {
     await one("SELECT 1 AS ok");
-    res.json({ ok: true, service: "VMC Xtreme Membership Platform", version: "4.0.0", database: "postgresql" });
+    databaseReady = true;
+    res.json({ ok: true, database: "ready" });
   } catch (error) {
-    console.error(error);
-    res.status(503).json({ ok: false, service: "VMC Xtreme Membership Platform", database: "unavailable" });
+    databaseReady = false;
+    res.status(503).json({ ok: false, database: "unavailable" });
   }
 });
 
@@ -838,16 +852,25 @@ app.use((err, _req, res, _next) => {
   return jsonError(res, 500, "Unexpected server error.");
 });
 
-async function start() {
+function start() {
   if (!DATABASE_URL) {
     console.error("DATABASE_URL is required for the PostgreSQL backend.");
     process.exit(1);
   }
-  await initializeDatabase();
-  app.listen(PORT, () => console.log(`VMC Xtreme platform running at http://localhost:${PORT}`));
+
+  // Bind the HTTP port immediately so Render can detect the service quickly.
+  // Database initialization happens after the process is reachable.
+  app.listen(PORT, async () => {
+    console.log(`VMC Xtreme platform running at http://localhost:${PORT}`);
+    try {
+      await initializeDatabase();
+      databaseReady = true;
+      console.log("VMC Xtreme database initialization complete.");
+    } catch (error) {
+      databaseReady = false;
+      console.error("VMC Xtreme database initialization failed:", error);
+    }
+  });
 }
 
-start().catch((error) => {
-  console.error("Failed to start VMC Xtreme:", error);
-  process.exit(1);
-});
+start();

@@ -1,8 +1,8 @@
 {
   "name": "vmc-xtreme-membership-platform",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "private": true,
-  "description": "VMC Xtreme Fitness Gym customer and membership platform foundation",
+  "description": "VMC Xtreme Fitness Gym customer and membership platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

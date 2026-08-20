@@ -1,7 +1,5 @@
 require("dotenv").config();
 
-const path = require("path");
-const fs = require("fs");
 const crypto = require("crypto");
 const express = require("express");
 const cookieParser = require("cookie-parser");
@@ -13,10 +11,12 @@ const jwt = require("jsonwebtoken");
 const { Pool } = require("pg");
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET || JWT_SECRET === "CHANGE_THIS_TO_A_LONG_RANDOM_SECRET") {
-  console.warn("WARNING: Set a strong JWT_SECRET before production.");
+if (!JWT_SECRET || JWT_SECRET === "CHANGE_THIS_TO_A_LONG_RANDOM_SECRET" || JWT_SECRET.length < 32) {
+  console.error("JWT_SECRET must be set to a random value of at least 32 characters.");
+  process.exit(1);
 }
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -58,17 +58,30 @@ async function withTransaction(work) {
 }
 
 async function initializeDatabase() {
-  const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
-  const seed = fs.readFileSync(path.join(__dirname, "seed.sql"), "utf8");
-  await exec(schema);
-  await exec(seed);
-  // Manager/Staff password-reset fields are additive and safe for existing PostgreSQL data.
+  // Production database schema is managed in Supabase, not applied from files at every startup.
+  // This keeps the public web repository from exposing database DDL and avoids schema changes
+  // being executed implicitly during a web-service restart. The startup checks below are
+  // additive/idempotent only.
   await exec(`ALTER TABLE owner_accounts
     ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT,
     ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS password_reset_used_at TIMESTAMPTZ`);
 
+  // Seed only the fixed public membership plans if they do not already exist.
+  await exec(`
+    INSERT INTO membership_plans (duration, session_type, price)
+    VALUES
+      ('day','single',2000),
+      ('day','double',3000),
+      ('week','single',8000),
+      ('week','double',10000),
+      ('month','single',30000),
+      ('month','double',35000)
+    ON CONFLICT (duration, session_type) DO NOTHING
+  `);
+
+  // Manager/Staff password-reset fields are additive and safe for existing PostgreSQL data.
   // Bootstrap the primary owner from Render environment variables once.
   // Additional owners are stored securely in the database.
   if (process.env.OWNER_EMAIL && process.env.OWNER_PASSWORD) {
@@ -83,20 +96,70 @@ async function initializeDatabase() {
   }
 }
 
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
+if (process.env.NODE_ENV === "production" && !FRONTEND_ORIGIN) {
+  console.error("FRONTEND_ORIGIN is required in production.");
+  process.exit(1);
+}
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || "https://mphatsonalikungwi.github.io",
+  origin: FRONTEND_ORIGIN,
   credentials: true
 }));
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:", "https:"]
+    }
+  },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+}));
 app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: false, limit: "50kb" }));
 app.use(cookieParser());
+app.use("/api/auth", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+app.use("/api/me", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+app.use("/api/owner", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+
+// Browser-side state changes must originate from the published VMC site.
+// CORS controls reads, while this check adds a server-side CSRF boundary for
+// credentialed POST/PATCH/PUT/DELETE requests. Non-browser clients without an
+// Origin header are still allowed for operational/API tooling.
+app.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    const origin = req.get("Origin");
+    const expected = FRONTEND_ORIGIN;
+    // Credentialed browser requests must identify the published origin. This
+    // closes the CSRF gap for browsers that send no Origin header on some
+    // navigation-like requests while preserving non-cookie operational calls.
+    if (req.cookies?.vmc_session && origin !== expected) {
+      return jsonError(res, 403, "Request origin is not allowed.");
+    }
+    if (origin && origin !== expected) return jsonError(res, 403, "Request origin is not allowed.");
+  }
+  next();
+});
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: 40,
   standardHeaders: true,
   legacyHeaders: false
+});
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many sign-in attempts. Please wait and try again." }
 });
 app.use("/api/auth", authLimiter);
 
@@ -105,9 +168,8 @@ function jsonError(res, status, message) {
 }
 
 async function memberId(client = pool) {
-  const row = await one("SELECT member_id FROM customers ORDER BY id DESC LIMIT 1", [], client);
-  const next = row ? Number(String(row.member_id).replace("VMC-", "")) + 1 : 1;
-  return `VMC-${String(next).padStart(6, "0")}`;
+  const row = await one("SELECT nextval('public.vmc_member_number_seq') AS next_id", [], client);
+  return `VMC-${String(Number(row?.next_id || 1)).padStart(6, "0")}`;
 }
 
 function expiryDate(start, duration) {
@@ -123,10 +185,9 @@ function authCookieOptions() {
     httpOnly: true,
     secure: process.env.COOKIE_SECURE !== "false",
     sameSite: process.env.COOKIE_SAMESITE || "none",
-    // GitHub Pages -> Render is cross-site. Partitioned cookies (CHIPS)
-    // allow the session cookie in browsers that block ordinary third-party
-    // cookies, including private/incognito contexts.
-    partitioned: true,
+    // Production is intended to be same-origin: the Render service serves both
+    // the public site and the API. This keeps the session cookie same-site.
+    partitioned: process.env.COOKIE_PARTITIONED === "true",
     maxAge: 8 * 60 * 60 * 1000,
     path: "/"
   };
@@ -148,21 +209,45 @@ function requireAuth(req, res, next) {
 }
 
 function requireOwner(req, res, next) {
-  requireAuth(req, res, () => {
+  requireAuth(req, res, async () => {
     if (req.user.role !== "owner") return jsonError(res, 403, "Owner access required.");
-    next();
+    try {
+      const owner = await one("SELECT id, role, status, is_primary FROM owner_accounts WHERE id=$1", [req.user.sub]);
+      if (!owner || owner.status !== "active") return jsonError(res, 401, "Owner account is inactive or unavailable.");
+      req.owner = owner;
+      next();
+    } catch (error) {
+      console.error(error);
+      return jsonError(res, 500, "Unexpected server error.");
+    }
   });
 }
 function requireCustomer(req, res, next) {
-  requireAuth(req, res, () => {
+  requireAuth(req, res, async () => {
     if (req.user.role !== "customer") return jsonError(res, 403, "Customer access required.");
-    next();
+    try {
+      const customer = await one("SELECT id, account_status FROM customers WHERE id=$1", [req.user.sub]);
+      if (!customer || customer.account_status !== "active") return jsonError(res, 401, "Customer account is inactive or unavailable.");
+      req.customer = customer;
+      next();
+    } catch (error) {
+      console.error(error);
+      return jsonError(res, 500, "Unexpected server error.");
+    }
   });
 }
 
 function hashResetToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
+
+const registrationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many registration attempts. Please wait and try again." }
+});
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -212,29 +297,47 @@ app.get("/api/plans", async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post("/api/auth/register", async (req, res, next) => {
-  try {
-    return jsonError(res, 503, "Customer registration is coming soon. Please contact VMC directly.");
+app.get("/api/public-registration-status", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ enabled: process.env.PUBLIC_REGISTRATION_ENABLED === "true" });
+});
 
+app.post("/api/auth/register", registrationLimiter, async (req, res, next) => {
+  try {
     if (process.env.PUBLIC_REGISTRATION_ENABLED !== "true") {
-      return jsonError(res, 503, "Customer Registration Coming Soon.");
+      return jsonError(res, 503, "Customer registration is coming soon. Please contact VMC directly.");
     }
     const { fullName, dob, gender, phone, email, emergencyContact,
       duration, sessionType, paymentMethod, paymentReference,
       password, rulesAccepted, rulesVersion } = req.body;
 
-    if (!fullName || !dob || !gender || !phone || !email || !emergencyContact ||
+    const cleanFullName = String(fullName || "").trim();
+    const cleanDob = String(dob || "").trim();
+    const cleanGender = String(gender || "").trim();
+    const cleanPhone = String(phone || "").trim();
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanEmergency = String(emergencyContact || "").trim();
+    const cleanReference = String(paymentReference || "").trim();
+
+    if (!cleanFullName || !cleanDob || !cleanGender || !cleanPhone || !cleanEmail || !cleanEmergency ||
         !duration || !sessionType || !paymentMethod || !password || !rulesAccepted) {
       return jsonError(res, 400, "All required registration fields must be completed.");
     }
-    if (password.length < 8) return jsonError(res, 400, "Password must be at least 8 characters.");
+    if (cleanFullName.length > 120 || cleanPhone.length > 40 || cleanEmail.length > 254 || cleanEmergency.length > 120 || cleanReference.length > 120) {
+      return jsonError(res, 400, "One or more fields are too long.");
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return jsonError(res, 400, "Enter a valid email address.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDob)) return jsonError(res, 400, "Enter a valid date of birth.");
+    const dobDate = new Date(`${cleanDob}T00:00:00Z`);
+    if (Number.isNaN(dobDate.getTime()) || dobDate > new Date()) return jsonError(res, 400, "Date of birth cannot be in the future.");
+    if (password.length < 8 || password.length > 128) return jsonError(res, 400, "Password must be between 8 and 128 characters.");
+    if (rulesVersion && rulesVersion !== "VMC Rules v1.0") return jsonError(res, 400, "The current VMC rules must be accepted.");
     if (!["day","week","month"].includes(duration)) return jsonError(res, 400, "Invalid membership duration.");
     if (!["single","double"].includes(sessionType)) return jsonError(res, 400, "Invalid session type.");
     if (!["Airtel Money","TNM Mpamba","National Bank","Cash"].includes(paymentMethod)) {
       return jsonError(res, 400, "Invalid payment method.");
     }
 
-    const cleanEmail = String(email).trim().toLowerCase();
     const existing = await one("SELECT id FROM customers WHERE email=$1", [cleanEmail]);
     if (existing) return jsonError(res, 409, "An account with that email already exists.");
 
@@ -255,7 +358,7 @@ app.post("/api/auth/register", async (req, res, next) => {
           (member_id, full_name, dob, gender, phone, email, emergency_contact, password_hash)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id
-      `, [id, fullName.trim(), dob, gender, phone.trim(), cleanEmail, emergencyContact.trim(), passwordHash], client);
+      `, [id, cleanFullName, cleanDob, cleanGender, cleanPhone, cleanEmail, cleanEmergency, passwordHash], client);
       const membership = await one(`
         INSERT INTO memberships (customer_id, plan_id, start_date, expiry_date, status)
         VALUES ($1, $2, $3, $4, 'pending_payment')
@@ -265,7 +368,7 @@ app.post("/api/auth/register", async (req, res, next) => {
         INSERT INTO payments
           (customer_id, membership_id, amount, method, reference, status)
         VALUES ($1, $2, $3, $4, $5, 'pending')
-      `, [customer.id, membership.id, plan.price, paymentMethod, paymentReference || null], client);
+      `, [customer.id, membership.id, plan.price, paymentMethod, cleanReference || null], client);
       await exec(`
         INSERT INTO rules_acceptance (customer_id, rules_version, accepted)
         VALUES ($1, $2, true)
@@ -278,7 +381,7 @@ app.post("/api/auth/register", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post("/api/auth/login", async (req, res, next) => {
+app.post("/api/auth/login", loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return jsonError(res, 400, "Email and password are required.");
@@ -344,7 +447,7 @@ app.post("/api/auth/staff-reset-password", passwordResetLimiter, async (req, res
   } catch (error) { next(error); }
 });
 
-app.post("/api/auth/owner-login", async (req, res, next) => {
+app.post("/api/auth/owner-login", loginLimiter, async (req, res, next) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
     const password = String(req.body.password || "");
@@ -461,6 +564,7 @@ app.post("/api/owner/members", requireOwner, async (req, res, next) => {
     if (!["day", "week", "month"].includes(duration) || !["single", "double"].includes(session_type) || !allowedMethods.includes(method)) return jsonError(res, 400, "Invalid membership or payment option.");
     const plan = await one("SELECT id, price FROM membership_plans WHERE duration=$1 AND session_type=$2 AND active=true", [duration, session_type]);
     if (!plan) return jsonError(res, 400, "Selected membership plan is unavailable.");
+    if (Math.round(cleanAmount) !== Number(plan.price)) return jsonError(res, 400, "Payment amount must match the selected membership plan.");
     const existing = await one("SELECT id FROM customers WHERE email=$1", [cleanEmail]);
     if (existing) return jsonError(res, 409, "A customer with this email already exists.");
     const expiry = expiryDate(start_date, duration);
@@ -470,7 +574,7 @@ app.post("/api/owner/members", requireOwner, async (req, res, next) => {
       const customer = await one(`INSERT INTO customers (member_id, full_name, dob, gender, phone, email, emergency_contact, password_hash, account_status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active') RETURNING id, member_id`, [id, full_name.trim(), dob, gender, phone.trim(), cleanEmail, emergency_contact.trim(), placeholderPassword], client);
       const membership = await one(`INSERT INTO memberships (customer_id, plan_id, start_date, expiry_date, status) VALUES ($1,$2,$3,$4,'active') RETURNING id`, [customer.id, plan.id, start_date, expiry], client);
       const payment = await one(`INSERT INTO payments (customer_id, membership_id, amount, method, reference, status, verified_at) VALUES ($1,$2,$3,$4,$5,'verified',CURRENT_TIMESTAMP) RETURNING id`, [customer.id, membership.id, Math.round(cleanAmount), method, reference ? String(reference).trim() : null], client);
-      await audit("owner", null, "MANUAL_MEMBER_ADDED", "customer", customer.id, { membershipId: membership.id, paymentId: payment.id, method, amount: Math.round(cleanAmount) }, client);
+      await audit("owner", req.user.sub, "MANUAL_MEMBER_ADDED", "customer", customer.id, { membershipId: membership.id, paymentId: payment.id, method, amount: Math.round(cleanAmount) }, client);
       return { memberId: customer.member_id, expiryDate: expiry };
     });
     res.status(201).json({ ok: true, ...result });
@@ -518,7 +622,7 @@ app.patch("/api/owner/accounts/:id/status", requireSuperOwner, async (req, res, 
     const status = String(req.body.status || "");
     if (!Number.isInteger(id) || !["active", "inactive"].includes(status)) return jsonError(res, 400, "Invalid owner status.");
     const target = await one("SELECT id, is_primary, role, full_name FROM owner_accounts WHERE id=$1", [id]);
-    if (!target) return jsonError(res, 404, "Owner account not found.");
+    if (!target || (target.is_primary && !req.user.isPrimary)) return jsonError(res, 404, "Owner account not found.");
     if (target.is_primary && status !== "active") return jsonError(res, 400, "The primary Super Owner cannot be deactivated.");
     if (id === Number(req.user.sub) && status !== "active") return jsonError(res, 400, "You cannot deactivate your own account.");
     if (target.role === "super_owner" && !req.user.isPrimary) return jsonError(res, 403, "Only the Primary Super Owner can manage Super Owner accounts.");
@@ -535,7 +639,7 @@ app.delete("/api/owner/accounts/:id", requireSuperOwner, async (req, res, next) 
     if (id === Number(req.user.sub)) return jsonError(res, 400, "You cannot delete your own account.");
 
     const target = await one("SELECT id, full_name, role, is_primary FROM owner_accounts WHERE id=$1", [id]);
-    if (!target) return jsonError(res, 404, "Owner account not found.");
+    if (!target || (target.is_primary && !req.user.isPrimary)) return jsonError(res, 404, "Owner account not found.");
     if (target.is_primary) return jsonError(res, 400, "The primary Super Owner cannot be deleted.");
 
     if (target.role === "super_owner") {
@@ -633,7 +737,7 @@ app.post("/api/owner/memberships/:membershipId/payment", requireSuperOwner, asyn
         RETURNING id
       `, [membership.customer_id, membership.id, amount, method, reference], client);
 
-      await audit("owner", null, "PAYMENT_ADDED", "payment", payment.id, {
+      await audit("owner", req.user.sub, "PAYMENT_ADDED", "payment", payment.id, {
         membershipId: membership.id, amount, method, reference
       }, client);
     });
@@ -649,15 +753,24 @@ app.post("/api/owner/memberships/:membershipId/payment", requireSuperOwner, asyn
 
 app.post("/api/owner/payments/:paymentId/verify", requireSuperOwner, async (req, res, next) => {
   try {
-    const payment = await one("SELECT * FROM payments WHERE id=$1", [req.params.paymentId]);
-    if (!payment) return jsonError(res, 404, "Payment not found.");
+    const paymentId = Number(req.params.paymentId);
+    if (!Number.isInteger(paymentId)) return jsonError(res, 400, "Invalid payment.");
     await withTransaction(async (client) => {
+      const payment = await one("SELECT id, membership_id, status FROM payments WHERE id=$1 FOR UPDATE", [paymentId], client);
+      if (!payment) throw Object.assign(new Error("Payment not found."), { statusCode: 404 });
+      if (payment.status !== "pending") throw Object.assign(new Error("Only pending payments can be verified."), { statusCode: 400 });
+      const membership = await one("SELECT id, status FROM memberships WHERE id=$1 FOR UPDATE", [payment.membership_id], client);
+      if (!membership) throw Object.assign(new Error("Membership not found."), { statusCode: 404 });
+      if (membership.status !== "pending_payment") throw Object.assign(new Error("This membership is no longer awaiting payment."), { statusCode: 400 });
       await exec("UPDATE payments SET status='verified', verified_at=CURRENT_TIMESTAMP WHERE id=$1", [payment.id], client);
       await exec("UPDATE memberships SET status='active', updated_at=CURRENT_TIMESTAMP WHERE id=$1", [payment.membership_id], client);
-      await audit("owner", null, "PAYMENT_VERIFIED", "payment", payment.id, { membershipId: payment.membership_id }, client);
+      await audit("owner", req.user.sub, "PAYMENT_VERIFIED", "payment", payment.id, { membershipId: payment.membership_id }, client);
     });
     res.json({ ok: true });
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error?.statusCode) return jsonError(res, error.statusCode, error.message);
+    next(error);
+  }
 });
 
 app.post("/api/owner/memberships/:membershipId/renew", requireSuperOwner, async (req, res, next) => {
@@ -689,7 +802,7 @@ app.post("/api/owner/memberships/:membershipId/renew", requireSuperOwner, async 
         [membership.customer_id, created.id, amount, method, reference],
         client
       );
-      await audit("owner", null, "RENEWAL_CREATED", "membership", created.id, {
+      await audit("owner", req.user.sub, "RENEWAL_CREATED", "membership", created.id, {
         startDate, expiry, paymentId: payment.id, amount, method, reference
       }, client);
     });
@@ -704,7 +817,15 @@ app.post("/api/owner/memberships/:membershipId/renew", requireSuperOwner, async 
   } catch (error) { next(error); }
 });
 
-app.use(express.static(path.join(__dirname, "public")));
+// Serve the same app from Render when deployed as a single-origin service.
+// This lets the frontend and API share one site, so authentication cookies can
+// use normal same-site protections instead of relying on cross-site cookies.
+app.use(express.static(__dirname, {
+  index: "index.html",
+  dotfiles: "deny",
+  etag: true,
+  maxAge: process.env.NODE_ENV === "production" ? "1h" : 0
+}));
 app.use((err, _req, res, _next) => {
   console.error(err);
   return jsonError(res, 500, "Unexpected server error.");

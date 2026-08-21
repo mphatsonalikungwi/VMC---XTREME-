@@ -85,38 +85,26 @@ async function initializeDatabase() {
   // Bootstrap the primary owner from Render environment variables once.
   // Additional owners are stored securely in the database.
   if (process.env.OWNER_EMAIL && process.env.OWNER_PASSWORD) {
-    const configuredEmail = process.env.OWNER_EMAIL.trim().toLowerCase();
-    const existingPrimary = await one("SELECT id, email FROM owner_accounts WHERE is_primary=true LIMIT 1");
+    const existingPrimary = await one("SELECT id FROM owner_accounts WHERE is_primary=true LIMIT 1");
     if (!existingPrimary) {
       const hash = await bcrypt.hash(process.env.OWNER_PASSWORD, 12);
       await exec(`
         INSERT INTO owner_accounts (full_name, email, password_hash, role, status, is_primary)
         VALUES ($1, $2, $3, 'super_owner', 'active', true)
-      `, ["Primary Owner", configuredEmail, hash]);
-    } else if (process.env.OWNER_SYNC_PASSWORD === "true" && existingPrimary.email === configuredEmail) {
-      const hash = await bcrypt.hash(process.env.OWNER_PASSWORD, 12);
-      await exec("UPDATE owner_accounts SET password_hash=$1, status='active', role='super_owner', updated_at=CURRENT_TIMESTAMP WHERE id=$2", [hash, existingPrimary.id]);
+      `, ["Primary Owner", process.env.OWNER_EMAIL.trim().toLowerCase(), hash]);
     }
   }
 }
 
-const configuredOrigins = String(process.env.FRONTEND_ORIGIN || "").split(",").map(v => v.trim()).filter(Boolean);
-const allowedOrigins = new Set(configuredOrigins.length ? configuredOrigins : ["http://localhost:3000"]);
-if (process.env.NODE_ENV === "production" && configuredOrigins.length === 0) {
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
+if (process.env.NODE_ENV === "production" && !FRONTEND_ORIGIN) {
   console.error("FRONTEND_ORIGIN is required in production.");
   process.exit(1);
 }
-const corsOptions = {
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    callback(null, allowedOrigins.has(origin));
-  },
-  credentials: true,
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-};
-app.use(cors(corsOptions));
-app.options(/.*/, cors(corsOptions));
+app.use(cors({
+  origin: FRONTEND_ORIGIN,
+  credentials: true
+}));
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -128,7 +116,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
       styleSrc: ["'self'", "'unsafe-inline'", "https:"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'", "https://vmc-xtreme-1.onrender.com"],
+      connectSrc: ["'self'"],
       fontSrc: ["'self'", "data:", "https:"]
     }
   },
@@ -148,9 +136,14 @@ app.use("/api/owner", (_req, res, next) => { res.set("Cache-Control", "no-store"
 app.use((req, res, next) => {
   if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
     const origin = req.get("Origin");
-    // Only explicitly configured frontend origins may perform browser state changes.
-    // This keeps the CSRF boundary strict while allowing a controlled domain migration.
-    if (origin && !allowedOrigins.has(origin)) return jsonError(res, 403, "Request origin is not allowed.");
+    const expected = FRONTEND_ORIGIN;
+    // Credentialed browser requests must identify the published origin. This
+    // closes the CSRF gap for browsers that send no Origin header on some
+    // navigation-like requests while preserving non-cookie operational calls.
+    if (req.cookies?.vmc_session && origin !== expected) {
+      return jsonError(res, 403, "Request origin is not allowed.");
+    }
+    if (origin && origin !== expected) return jsonError(res, 403, "Request origin is not allowed.");
   }
   next();
 });
@@ -191,11 +184,9 @@ function authCookieOptions() {
   return {
     httpOnly: true,
     secure: process.env.COOKIE_SECURE !== "false",
-    // This deployment is always cross-site: the frontend is on GitHub Pages,
-    // the API is on Render. SameSite=None is required for the session cookie
-    // to be sent on cross-site requests. Only override via COOKIE_SAMESITE
-    // if you genuinely serve frontend and API from the same origin.
     sameSite: process.env.COOKIE_SAMESITE || "none",
+    // Production is intended to be same-origin: the Render service serves both
+    // the public site and the API. This keeps the session cookie same-site.
     partitioned: process.env.COOKIE_PARTITIONED === "true",
     maxAge: 8 * 60 * 60 * 1000,
     path: "/"
@@ -840,34 +831,13 @@ app.use((err, _req, res, _next) => {
   return jsonError(res, 500, "Unexpected server error.");
 });
 
-let databaseReady = false;
-
-app.get("/api/health", (_req, res) => {
-  if (!databaseReady) return res.status(503).json({ ok: false, status: "starting" });
-  return res.status(200).json({ ok: true, status: "ready" });
-});
-
 async function start() {
   if (!DATABASE_URL) {
     console.error("DATABASE_URL is required for the PostgreSQL backend.");
     process.exit(1);
   }
-
-  // Bind immediately so Render can detect the service without waiting on
-  // database initialization. Database setup happens before the app is
-  // advertised as ready through /api/health.
-  const server = app.listen(PORT, () => {
-    console.log(`VMC Xtreme platform listening on port ${PORT}`);
-  });
-
-  try {
-    await initializeDatabase();
-    databaseReady = true;
-    console.log("VMC Xtreme database initialization complete.");
-  } catch (error) {
-    console.error("Database initialization failed:", error);
-    server.close(() => process.exit(1));
-  }
+  await initializeDatabase();
+  app.listen(PORT, () => console.log(`VMC Xtreme platform running at http://localhost:${PORT}`));
 }
 
 start().catch((error) => {

@@ -273,6 +273,45 @@ window.supabaseKey = 'sb_publishable_-ldpCiaxCElX9c7Q6zLqqQ_gHUBunBI';
     }
   }
 
+  function renderReactivation(profile, email) {
+    if ($('#loginView')) $('#loginView').hidden = true;
+    if ($('#registerView')) $('#registerView').hidden = true;
+    if ($('#successView')) $('#successView').hidden = false;
+    if ($('#modalTitle')) $('#modalTitle').textContent = 'Membership Reactivation';
+    const view = $('#successView');
+    if (!view) return;
+    view.innerHTML = `
+      <div class="success">
+        <div class="success-icon">!</div>
+        <h2>Membership expired.</h2>
+        <p>Your membership has expired because it was not renewed. To initiate reactivation, confirm that you agree to make your membership payment.</p>
+        <div class="status-box"><span class="status-label">Account status</span><span class="status-value">REACTIVATION REQUIRED</span></div>
+        <div class="account-box"><div class="account-grid">
+          <div><small>Member</small><strong>${esc(profile?.full_name || 'VMC Member')}</strong></div>
+          <div><small>Email</small><strong>${esc(email || '')}</strong></div>
+          <div><small>Membership</small><strong>${esc(profile?.membership_tier || '—')}</strong></div>
+          <div><small>Payment</small><strong>Pending Payment Verification</strong></div>
+        </div></div>
+        <label class="check" style="margin-top:16px"><input id="reactivationAgree" type="checkbox"><span>I agree to make the required membership payment and understand that VMC management must verify the payment.</span></label>
+        <div class="form-error" id="reactivationError" role="alert"></div>
+        <div class="form-actions"><button class="btn btn-red" id="reactivateBtn" type="button">Initiate Reactivation</button><button class="btn btn-dark" id="reactivateClose" type="button">Close</button></div>
+      </div>`;
+    $('#reactivateClose')?.addEventListener('click', closeModal);
+    $('#reactivateBtn')?.addEventListener('click', async () => {
+      const errorBox=$('#reactivationError'), button=$('#reactivateBtn');
+      if (!$('#reactivationAgree')?.checked) { setError(errorBox, 'Please confirm that you agree to make the membership payment.'); return; }
+      button.disabled=true; button.textContent='Initiating…';
+      try {
+        const {data,error}=await supabase.functions.invoke('vmc-member-api',{body:{action:'reactivate'}});
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        const latest=await currentProfile();
+        renderAccount(latest.profile,email);
+        showToast('Reactivation initiated. Your account is active and flagged for payment verification.');
+      } catch (err) { setError(errorBox, friendlyError(err)); button.disabled=false; button.textContent='Initiate Reactivation'; }
+    });
+  }
+
   async function loginMember(event) {
     event.preventDefault();
     const errorBox = $('#loginError');
@@ -288,6 +327,11 @@ window.supabaseKey = 'sb_publishable_-ldpCiaxCElX9c7Q6zLqqQ_gHUBunBI';
       if (error) throw error;
       const { user, profile } = await currentProfile();
       if (!user || !profile) throw new Error('Your authentication succeeded, but your VMC profile could not be loaded.');
+      if (!management) {
+        const { data: lifecycle, error: lifecycleError } = await supabase.functions.invoke('vmc-member-api', { body: { action: 'status' } });
+        if (lifecycleError) throw lifecycleError;
+        if (lifecycle?.status === 'reactivation_required') { renderReactivation(lifecycle.profile || profile, user.email); return; }
+      }
       if (profile.account_status !== 'active') throw new Error('This account is not active. Contact VMC management.');
       const management = Boolean(profile.is_admin) || ['owner', 'manager', 'staff'].includes(profile.account_role);
       if (state.loginMode === 'admin' && !management) {

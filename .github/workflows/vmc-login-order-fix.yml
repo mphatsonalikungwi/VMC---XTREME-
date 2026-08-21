@@ -1,0 +1,50 @@
+name: VMC login order fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix login order
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          old="""      const { user, profile } = await currentProfile();
+      if (!user || !profile) throw new Error('Your authentication succeeded, but your VMC profile could not be loaded.');
+      if (!management) {
+        const { data: lifecycle, error: lifecycleError } = await supabase.functions.invoke('vmc-member-api', { body: { action: 'status' } });
+        if (lifecycleError) throw lifecycleError;
+        if (lifecycle?.status === 'reactivation_required') { renderReactivation(lifecycle.profile || profile, user.email); return; }
+      }
+      if (profile.account_status !== 'active') throw new Error('This account is not active. Contact VMC management.');
+      const management = Boolean(profile.is_admin) || ['owner', 'manager', 'staff'].includes(profile.account_role);"""
+          new="""      const { user, profile } = await currentProfile();
+      if (!user || !profile) throw new Error('Your authentication succeeded, but your VMC profile could not be loaded.');
+      const management = Boolean(profile.is_admin) || ['owner', 'manager', 'staff'].includes(profile.account_role);
+      if (!management) {
+        const { data: lifecycle, error: lifecycleError } = await supabase.functions.invoke('vmc-member-api', { body: { action: 'status' } });
+        if (lifecycleError) throw lifecycleError;
+        if (lifecycle?.status === 'reactivation_required') { renderReactivation(lifecycle.profile || profile, user.email); return; }
+      }
+      if (profile.account_status !== 'active') throw new Error('This account is not active. Contact VMC management.');"""
+          if old not in s:
+              raise SystemExit('expected login block not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Commit and remove workflow
+        run: |
+          git config user.name "VMC Xtreme Automation"
+          git config user.email "actions@github.com"
+          git add app.js
+          git diff --cached --quiet || git commit -m "fix member login lifecycle order"
+          git push
+          rm -f .github/workflows/vmc-login-order-fix.yml
+          git add .github/workflows/vmc-login-order-fix.yml
+          git commit -m "remove login order patch workflow"
+          git push

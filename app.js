@@ -1,45 +1,434 @@
 /* VMC XTREME FITNESS — public browser application core.
- * The values below are the PUBLIC Supabase project URL and publishable/anon key.
- * Never place a Supabase service-role/secret key in this file.
+ * Only the public Supabase URL and publishable/anon key belong here.
+ * NEVER place a Supabase service-role/secret key in browser code.
  */
 window.supabaseUrl = 'https://czdxwlioouuredaliplw.supabase.co';
 window.supabaseKey = 'sb_publishable_-ldpCiaxCElX9c7Q6zLqqQ_gHUBunBI';
 
 (() => {
   'use strict';
+
   const { createClient } = window.supabase;
-  const supabase = createClient(window.supabaseUrl, window.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+  const supabase = createClient(window.supabaseUrl, window.supabaseKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  });
   window.vmcSupabase = supabase;
-  const $ = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const state = { selectedPlan: null, loginMode: 'member', lastProfile: null };
-  const modalWrap = $('#modalWrap'), modalTitle = $('#modalTitle'), loginView = $('#loginView'), registerView = $('#registerView'), successView = $('#successView'), loginError = $('#loginError'), registerError = $('#registerError'), toast = $('#toast'), nav = $('#nav');
-  const prices = { 'Per Day': { Single: 2000, Double: 3000 }, 'Per Week': { Single: 8000, Double: 10000 }, 'Per Month': { Single: 30000, Double: 35000 } };
+
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const state = { selectedPlan: null, loginMode: 'member' };
+
+  const prices = {
+    'Per Day': { Single: 2000, Double: 3000 },
+    'Per Week': { Single: 8000, Double: 10000 },
+    'Per Month': { Single: 30000, Double: 35000 }
+  };
+
   const priceFor = (tier, session) => prices[tier]?.[session] || 0;
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  function showToast(message){ if(!toast)return; toast.textContent=message; toast.classList.add('show'); clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>toast.classList.remove('show'),3800); }
-  function setError(el,message){ if(!el)return; el.textContent=message||''; el.classList.toggle('show',Boolean(message)); }
-  function injectPasswordToggles(){
-    if(document.getElementById('vmcPasswordToggleStyles'))return;
-    const style=document.createElement('style'); style.id='vmcPasswordToggleStyles'; style.textContent='.vmc-password-wrap{position:relative}.vmc-password-wrap input{padding-right:48px!important}.vmc-password-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#a7abb2;width:36px;height:36px;border-radius:9px;font-size:1rem}.vmc-password-toggle:hover{background:#1a1c21;color:#fff}'; document.head.appendChild(style);
-    $$('input[type="password"]').forEach(input=>{ if(input.closest('.vmc-password-wrap'))return; const wrap=document.createElement('div'); wrap.className='vmc-password-wrap'; input.parentNode.insertBefore(wrap,input); wrap.appendChild(input); const b=document.createElement('button'); b.type='button'; b.className='vmc-password-toggle'; b.setAttribute('aria-label','Show password'); b.textContent='◉'; b.onclick=()=>{const visible=input.type==='text'; input.type=visible?'password':'text'; b.textContent=visible?'◉':'◌'; b.setAttribute('aria-label',visible?'Show password':'Hide password')}; wrap.appendChild(b); });
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+  function showToast(message) {
+    const toast = $('#toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => toast.classList.remove('show'), 3800);
   }
-  function resetLoginForm(){ $('#loginForm')?.reset(); setError(loginError,''); }
-  function openModal(mode='login'){ state.loginMode=mode==='admin'?'admin':'member'; modalWrap.classList.add('open'); modalWrap.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open'); if(state.loginMode==='admin')showLogin('admin'); else if(mode==='register')showRegister(); else showLogin('member'); setTimeout(()=>$('#loginEmail')?.focus(),40); }
-  function closeModal(){ modalWrap.classList.remove('open'); modalWrap.setAttribute('aria-hidden','true'); document.body.classList.remove('modal-open'); }
-  function showLogin(mode=state.loginMode){ state.loginMode=mode==='admin'?'admin':'member'; modalTitle.textContent=state.loginMode==='admin'?'Admin Login':'Member Login'; loginView.hidden=false; registerView.hidden=true; successView.hidden=true; resetLoginForm(); injectPasswordToggles(); }
-  function showRegister(plan=null){ state.loginMode='member'; modalTitle.textContent='Create Member Account'; loginView.hidden=true; registerView.hidden=false; successView.hidden=true; setError(registerError,''); if(plan)applyPlan(plan); injectPasswordToggles(); }
-  function applyPlan(plan){ const[tier,session,price]=plan.split('|'); state.selectedPlan={tier,session,price:Number(price)}; $('#tier').value=tier; $('#session').value=session; $('#selectedPlanText').textContent=`${tier} · ${session} Session · K ${Number(price).toLocaleString('en-MW')}`; }
-  function validateRegistration(d){ if(!d.full_name||d.full_name.trim().length<2)return'Please enter your full name.'; if(!d.email||!/^\S+@\S+\.\S+$/.test(d.email))return'Please enter a valid email address.'; if(!d.password||d.password.length<8)return'Password must be at least 8 characters.'; if(!d.phone_number||d.phone_number.trim().length<7)return'Please enter a valid phone number.'; if(!d.membership_tier)return'Please select a membership plan.'; if(!d.session_type)return'Please select Single or Double Session.'; if(!d.payment_channel)return'Please select a payment channel.'; if(!$('#rulesCheck').checked)return'You must agree to all 15 gym rules before creating an account.'; return''; }
-  function renderSuccess(p,email){ state.lastProfile=p||{}; loginView.hidden=true; registerView.hidden=true; successView.hidden=false; modalTitle.textContent='VMC Member Onboarding'; successView.innerHTML=`<div class="success"><div class="success-icon">✓</div><h2>Registration received.</h2><p>Your VMC member account has been created. Your membership is now waiting for VMC payment verification.</p><div class="status-box"><span class="status-label">Payment status</span><span class="status-value">${esc(p?.payment_status||'Pending Payment Verification')}</span></div><div class="account-box"><div class="account-grid"><div><small>Member</small><strong>${esc(p?.full_name||'VMC Member')}</strong></div><div><small>Email</small><strong>${esc(email||'')}</strong></div><div><small>Membership</small><strong>${esc(p?.membership_tier||state.selectedPlan?.tier||'—')}</strong></div><div><small>Session</small><strong>${esc(p?.session_type||state.selectedPlan?.session||'—')}</strong></div><div><small>Payment channel</small><strong>${esc(p?.payment_channel||'—')}</strong></div><div><small>Reference</small><strong>${esc(p?.receipt_reference||'Not provided')}</strong></div></div></div><div class="form-actions"><button class="btn btn-red" type="button" id="successLogin">Member Login</button><button class="btn btn-dark" type="button" id="successClose">Close</button></div></div>`; $('#successLogin')?.addEventListener('click',()=>showLogin('member')); $('#successClose')?.addEventListener('click',closeModal); }
-  function renderAccount(p,email){ state.lastProfile=p; loginView.hidden=true; registerView.hidden=true; successView.hidden=false; const management=Boolean(p.is_admin)||['owner','manager','staff'].includes(p.account_role); modalTitle.textContent=management?'VMC Account':'Member Account'; const admin=management?'<div class="admin-panel"><p class="form-note">Management access is available from the secure VMC dashboard.</p><div class="form-actions"><a class="btn btn-red" href="dashboard.html">Open Admin Dashboard</a></div></div>':''; successView.innerHTML=`<div class="success"><div class="success-icon">✓</div><h2>Welcome back.</h2><p>Your VMC account is connected to the member system.</p><div class="status-box"><span class="status-label">Payment status</span><span class="status-value">${esc(p.payment_status||'Pending Payment Verification')}</span></div><div class="account-box"><div class="account-grid"><div><small>Member</small><strong>${esc(p.full_name||'VMC Member')}</strong></div><div><small>Email</small><strong>${esc(email||'')}</strong></div><div><small>Membership</small><strong>${esc(p.membership_tier||'—')}</strong></div><div><small>Session</small><strong>${esc(p.session_type||'—')}</strong></div><div><small>Start</small><strong>${esc(p.membership_start_date||'Not active')}</strong></div><div><small>Expires</small><strong>${esc(p.membership_expiry_date||'Awaiting approval')}</strong></div></div></div>${admin}<div class="form-actions"><button class="btn btn-dark" type="button" id="logoutBtn">Sign Out</button><button class="btn btn-red" type="button" id="accountClose">Close</button></div></div>`; $('#logoutBtn')?.addEventListener('click',signOut); $('#accountClose')?.addEventListener('click',closeModal); }
-  async function currentProfile(){ const{data:{user},error:ue}=await supabase.auth.getUser(); if(ue||!user)return{user:null,profile:null}; const{data:profile,error}=await supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(); if(error)throw error; return{user,profile}; }
-  async function registerMember(e){ e.preventDefault(); setError(registerError,''); const submit=$('#registerSubmit'), d=Object.fromEntries(new FormData(e.currentTarget).entries()), bad=validateRegistration(d); if(bad){setError(registerError,bad);return} submit.disabled=true; submit.textContent='Creating account…'; try{ const amount=state.selectedPlan?.price||priceFor(d.membership_tier,d.session_type); if(!amount)throw new Error('The selected membership price could not be determined. Please choose a valid plan.'); const{data:authData,error}=await supabase.auth.signUp({email:d.email.trim().toLowerCase(),password:d.password,options:{data:{account_role:'member',full_name:d.full_name.trim(),date_of_birth:d.date_of_birth||'',gender:d.gender||'',phone_number:d.phone_number.trim(),emergency_contact:d.emergency_contact.trim(),membership_tier:d.membership_tier,session_type:d.session_type,membership_amount:String(amount),payment_channel:d.payment_channel,receipt_reference:d.receipt_reference.trim()}}}); if(error)throw error; if(!authData.user)throw new Error('The account could not be created. Please try again.'); let profile=null; if(authData.session)profile=(await currentProfile()).profile; if(!profile)profile={full_name:d.full_name,membership_tier:d.membership_tier,session_type:d.session_type,payment_channel:d.payment_channel,receipt_reference:d.receipt_reference,payment_status:'Pending Payment Verification'}; renderSuccess(profile,authData.user.email); e.currentTarget.reset(); $('#selectedPlanText').textContent='Choose a plan below or continue with your details.'; state.selectedPlan=null; }catch(error){console.error('VMC registration error:',error);setError(registerError,friendlyError(error));}finally{submit.disabled=false;submit.textContent='Create Member Account';} }
-  async function loginMember(e){ e.preventDefault(); setError(loginError,''); const submit=$('#loginSubmit'), email=$('#loginEmail').value.trim().toLowerCase(), password=$('#loginPassword').value; if(!email||!password){setError(loginError,'Enter your email and password.');return} submit.disabled=true; submit.textContent='Signing in…'; try{ const{error}=await supabase.auth.signInWithPassword({email,password}); if(error)throw error; const{user,profile}=await currentProfile(); if(!user||!profile)throw new Error('Your authentication succeeded, but your VMC profile could not be loaded.'); if(profile.account_status!=='active')throw new Error('This account is not active. Contact VMC management.'); const management=Boolean(profile.is_admin)||['owner','manager','staff'].includes(profile.account_role); if(state.loginMode==='admin'){ if(!management){await supabase.auth.signOut();throw new Error('Admin access required. Use Member Login for a customer account.');} window.location.assign('dashboard.html'); return; } if(management){window.location.assign('dashboard.html');return} renderAccount(profile,user.email); }catch(error){console.error('VMC login error:',error);setError(loginError,friendlyError(error));}finally{submit.disabled=false;submit.textContent='Sign In';} }
-  async function signOut(){ const{error}=await supabase.auth.signOut(); if(error){showToast(error.message);return} showLogin('member'); showToast('You have been signed out.'); }
-  function friendlyError(error){ const m=String(error?.message||error||'Something went wrong.'); if(/invalid login credentials/i.test(m))return'The email or password is incorrect.'; if(/email not confirmed/i.test(m))return'This account is waiting for email confirmation. Please ask VMC management to confirm the account.'; if(/user already registered/i.test(m))return'An account with this email already exists. Use Member Login instead of creating another account.'; if(/password should be at least/i.test(m))return'Password must be at least 8 characters.'; return m; }
-  $$('[data-open="login"]').forEach(b=>b.addEventListener('click',()=>openModal('login'))); $$('[data-open="admin"]').forEach(b=>b.addEventListener('click',()=>openModal('admin'))); $$('[data-open="register"]').forEach(b=>b.addEventListener('click',()=>openModal('register'))); $$('[data-switch="login"]').forEach(b=>b.addEventListener('click',()=>showLogin('member'))); $$('[data-switch="register"]').forEach(b=>b.addEventListener('click',()=>showRegister())); $$('.choose').forEach(b=>b.addEventListener('click',()=>{openModal('register');showRegister(b.dataset.plan);}));
-  $('#modalClose')?.addEventListener('click',closeModal); modalWrap?.addEventListener('click',e=>{if(e.target===modalWrap)closeModal()}); document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modalWrap?.classList.contains('open'))closeModal()}); $('#registerForm')?.addEventListener('submit',registerMember); $('#loginForm')?.addEventListener('submit',loginMember);
-  $('#menuToggle')?.addEventListener('click',()=>{const open=nav.classList.toggle('mobile-open');$('#menuToggle').setAttribute('aria-expanded',String(open));$('#menuToggle').textContent=open?'×':'☰'}); $$('.nav-links a').forEach(a=>a.addEventListener('click',()=>{nav.classList.remove('mobile-open');$('#menuToggle').setAttribute('aria-expanded','false');$('#menuToggle').textContent='☰'}));
-  $$('[data-service]').forEach(card=>card.addEventListener('click',()=>{$$('[data-service]').forEach(x=>{if(x!==card){x.classList.remove('active');x.setAttribute('aria-expanded','false')}});card.classList.toggle('active');card.setAttribute('aria-expanded',String(card.classList.contains('active')));})); injectPasswordToggles(); supabase.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT'&&modalWrap?.classList.contains('open'))showLogin('member');});
+
+  function setError(element, message) {
+    if (!element) return;
+    element.textContent = message || '';
+    element.classList.toggle('show', Boolean(message));
+  }
+
+  function friendlyError(error) {
+    const message = String(error?.message || error || 'Something went wrong.');
+    if (/invalid login credentials/i.test(message)) return 'The email or password is incorrect.';
+    if (/email not confirmed/i.test(message)) return 'This account is waiting for email confirmation. Please contact VMC management.';
+    if (/user already registered/i.test(message)) return 'An account with this email already exists. Use Member Login instead of creating another account.';
+    if (/password should be at least/i.test(message)) return 'Password must be at least 8 characters.';
+    return message;
+  }
+
+  function injectPasswordToggles() {
+    if (!document.getElementById('vmcPasswordToggleStyles')) {
+      const style = document.createElement('style');
+      style.id = 'vmcPasswordToggleStyles';
+      style.textContent = `
+        .vmc-password-wrap{position:relative;width:100%}
+        .vmc-password-wrap input{padding-right:48px!important}
+        .vmc-password-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#a7abb2;width:36px;height:36px;border-radius:9px;font-size:1rem;z-index:2}
+        .vmc-password-toggle:hover{background:#1a1c21;color:#fff}
+        .vmc-nav-auth{display:flex;align-items:center;gap:8px;margin-left:4px;padding-left:12px;border-left:1px solid rgba(255,255,255,.12)}
+        .vmc-nav-auth button{border:1px solid #33363d;background:#17191e;color:#fff;border-radius:999px;padding:9px 13px;font-weight:900;font-size:.72rem;white-space:nowrap}
+        .vmc-nav-auth button.vmc-nav-join{background:#e31b2d;border-color:#e31b2d}
+        .vmc-nav-auth button.vmc-nav-admin{background:transparent}
+        @media(max-width:760px){.vmc-nav-auth{display:flex;flex-direction:column;align-items:stretch;margin:0;padding:12px 0 0;border-left:0;border-top:1px solid #202329;gap:8px}.vmc-nav-auth button{width:100%;border-radius:10px;padding:12px}.nav.mobile-open .vmc-nav-auth{display:flex}.nav-links .vmc-nav-auth{width:100%}}
+        .vmc-contact-icon{font-size:1.35rem;line-height:1}
+        .vmc-water-below{flex-basis:100%!important;width:100%;margin-left:0!important;padding-top:12px;border-top:1px solid #d8d9d5}
+        .gallery-item{min-height:390px}
+        .gallery-item.wide{height:500px}
+        @media(max-width:760px){.gallery-grid{grid-auto-rows:360px}.gallery-item{min-height:360px}.gallery-item.wide{height:430px}}
+      `;
+      document.head.appendChild(style);
+    }
+
+    $$('input[type="password"]').forEach(input => {
+      if (input.closest('.vmc-password-wrap')) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'vmc-password-wrap';
+      input.parentNode.insertBefore(wrapper, input);
+      wrapper.appendChild(input);
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'vmc-password-toggle';
+      toggle.textContent = '◉';
+      toggle.setAttribute('aria-label', 'Show password');
+      toggle.addEventListener('click', () => {
+        const visible = input.type === 'text';
+        input.type = visible ? 'password' : 'text';
+        toggle.textContent = visible ? '◉' : '◌';
+        toggle.setAttribute('aria-label', visible ? 'Show password' : 'Hide password');
+      });
+      wrapper.appendChild(toggle);
+    });
+  }
+
+  function resetLoginForm() {
+    const form = $('#loginForm');
+    if (form) form.reset();
+    const email = $('#loginEmail');
+    const password = $('#loginPassword');
+    if (email) { email.value = ''; email.setAttribute('autocomplete', 'off'); }
+    if (password) { password.value = ''; password.setAttribute('autocomplete', 'new-password'); }
+    setError($('#loginError'), '');
+  }
+
+  function openModal(mode = 'login') {
+    const modal = $('#modalWrap');
+    if (!modal) return;
+    state.loginMode = mode === 'admin' ? 'admin' : 'member';
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    if (state.loginMode === 'admin') showLogin('admin');
+    else if (mode === 'register') showRegister();
+    else showLogin('member');
+  }
+
+  function closeModal() {
+    const modal = $('#modalWrap');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+  }
+
+  function showLogin(mode = 'member') {
+    state.loginMode = mode === 'admin' ? 'admin' : 'member';
+    const title = $('#modalTitle');
+    if (title) title.textContent = state.loginMode === 'admin' ? 'Admin Login' : 'Member Login';
+    if ($('#loginView')) $('#loginView').hidden = false;
+    if ($('#registerView')) $('#registerView').hidden = true;
+    if ($('#successView')) $('#successView').hidden = true;
+    resetLoginForm();
+    injectPasswordToggles();
+    setTimeout(() => $('#loginEmail')?.focus(), 40);
+  }
+
+  function applyPlan(plan) {
+    const parts = String(plan || '').split('|');
+    const tier = parts[0];
+    const session = parts[1] || 'Single';
+    const price = Number(parts[2] || priceFor(tier, session));
+    state.selectedPlan = { tier, session, price };
+    if ($('#tier')) $('#tier').value = tier;
+    if ($('#session')) $('#session').value = session;
+    if ($('#selectedPlanText')) $('#selectedPlanText').textContent = `${tier} · ${session} Session · K ${price.toLocaleString('en-MW')}`;
+  }
+
+  function showRegister(plan = null) {
+    state.loginMode = 'member';
+    if ($('#modalTitle')) $('#modalTitle').textContent = 'Create Member Account';
+    if ($('#loginView')) $('#loginView').hidden = true;
+    if ($('#registerView')) $('#registerView').hidden = false;
+    if ($('#successView')) $('#successView').hidden = true;
+    setError($('#registerError'), '');
+    if (plan) applyPlan(plan);
+    injectPasswordToggles();
+  }
+
+  function validateRegistration(data) {
+    if (!data.full_name || data.full_name.trim().length < 2) return 'Please enter your full name.';
+    if (!data.email || !/^\S+@\S+\.\S+$/.test(data.email)) return 'Please enter a valid email address.';
+    if (!data.password || data.password.length < 8) return 'Password must be at least 8 characters.';
+    if (!data.phone_number || data.phone_number.trim().length < 7) return 'Please enter a valid phone number.';
+    if (!data.membership_tier) return 'Please select a membership plan.';
+    if (!data.session_type) return 'Please select Single or Double Session.';
+    if (!data.payment_channel) return 'Please select a payment channel.';
+    if (!$('#rulesCheck')?.checked) return 'You must agree to all 15 gym rules before creating an account.';
+    return '';
+  }
+
+  async function currentProfile() {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { user: null, profile: null };
+    const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    if (error) throw error;
+    return { user, profile };
+  }
+
+  function renderSuccess(profile, email) {
+    if ($('#loginView')) $('#loginView').hidden = true;
+    if ($('#registerView')) $('#registerView').hidden = true;
+    if ($('#successView')) $('#successView').hidden = false;
+    if ($('#modalTitle')) $('#modalTitle').textContent = 'VMC Member Onboarding';
+    const view = $('#successView');
+    if (!view) return;
+    view.innerHTML = `
+      <div class="success">
+        <div class="success-icon">✓</div>
+        <h2>Registration received.</h2>
+        <p>Your VMC member account has been created. Your membership is now waiting for VMC payment verification.</p>
+        <div class="status-box"><span class="status-label">Payment status</span><span class="status-value">${esc(profile?.payment_status || 'Pending Payment Verification')}</span></div>
+        <div class="account-box"><div class="account-grid">
+          <div><small>Member</small><strong>${esc(profile?.full_name || 'VMC Member')}</strong></div>
+          <div><small>Email</small><strong>${esc(email || '')}</strong></div>
+          <div><small>Membership</small><strong>${esc(profile?.membership_tier || state.selectedPlan?.tier || '—')}</strong></div>
+          <div><small>Session</small><strong>${esc(profile?.session_type || state.selectedPlan?.session || '—')}</strong></div>
+          <div><small>Payment channel</small><strong>${esc(profile?.payment_channel || '—')}</strong></div>
+          <div><small>Reference</small><strong>${esc(profile?.receipt_reference || 'Not provided')}</strong></div>
+        </div></div>
+        <div class="form-actions"><button class="btn btn-red" type="button" id="successLogin">Member Login</button><button class="btn btn-dark" type="button" id="successClose">Close</button></div>
+      </div>`;
+    $('#successLogin')?.addEventListener('click', () => showLogin('member'));
+    $('#successClose')?.addEventListener('click', closeModal);
+  }
+
+  function renderAccount(profile, email) {
+    const management = Boolean(profile?.is_admin) || ['owner', 'manager', 'staff'].includes(profile?.account_role);
+    if ($('#loginView')) $('#loginView').hidden = true;
+    if ($('#registerView')) $('#registerView').hidden = true;
+    if ($('#successView')) $('#successView').hidden = false;
+    if ($('#modalTitle')) $('#modalTitle').textContent = management ? 'VMC Management Account' : 'Member Account';
+    const view = $('#successView');
+    if (!view) return;
+    const managementPanel = management ? `<div class="admin-panel"><div class="form-actions"><a class="btn btn-red" href="dashboard.html">Open Admin Dashboard</a></div></div>` : '';
+    view.innerHTML = `
+      <div class="success"><div class="success-icon">✓</div><h2>Welcome back.</h2><p>Your VMC account is connected to the member system.</p>
+      <div class="status-box"><span class="status-label">Payment status</span><span class="status-value">${esc(profile?.payment_status || 'Pending Payment Verification')}</span></div>
+      <div class="account-box"><div class="account-grid">
+        <div><small>Member</small><strong>${esc(profile?.full_name || 'VMC Member')}</strong></div>
+        <div><small>Email</small><strong>${esc(email || '')}</strong></div>
+        <div><small>Membership</small><strong>${esc(profile?.membership_tier || '—')}</strong></div>
+        <div><small>Session</small><strong>${esc(profile?.session_type || '—')}</strong></div>
+        <div><small>Start</small><strong>${esc(profile?.membership_start_date || 'Not active')}</strong></div>
+        <div><small>Expires</small><strong>${esc(profile?.membership_expiry_date || 'Awaiting approval')}</strong></div>
+      </div></div>${managementPanel}
+      <div class="form-actions"><button class="btn btn-dark" type="button" id="logoutBtn">Sign Out</button><button class="btn btn-red" type="button" id="accountClose">Close</button></div></div>`;
+    $('#logoutBtn')?.addEventListener('click', signOut);
+    $('#accountClose')?.addEventListener('click', closeModal);
+  }
+
+  async function registerMember(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const errorBox = $('#registerError');
+    const submit = $('#registerSubmit');
+    const data = Object.fromEntries(new FormData(form).entries());
+    const validationError = validateRegistration(data);
+    setError(errorBox, validationError);
+    if (validationError) return;
+    submit.disabled = true;
+    submit.textContent = 'Creating account…';
+    try {
+      const amount = state.selectedPlan?.price || priceFor(data.membership_tier, data.session_type);
+      if (!amount) throw new Error('The selected membership price could not be determined. Please choose a valid plan.');
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: data.email.trim().toLowerCase(),
+        password: data.password,
+        options: { data: {
+          account_role: 'member', full_name: data.full_name.trim(), date_of_birth: data.date_of_birth || '', gender: data.gender || '',
+          phone_number: data.phone_number.trim(), emergency_contact: data.emergency_contact.trim(), membership_tier: data.membership_tier,
+          session_type: data.session_type, membership_amount: String(amount), payment_channel: data.payment_channel,
+          receipt_reference: data.receipt_reference.trim()
+        }}
+      });
+      if (error) throw error;
+      if (!authData.user) throw new Error('The account could not be created. Please try again.');
+      let profile = null;
+      if (authData.session) profile = (await currentProfile()).profile;
+      if (!profile) profile = { full_name: data.full_name, membership_tier: data.membership_tier, session_type: data.session_type, payment_channel: data.payment_channel, receipt_reference: data.receipt_reference, payment_status: 'Pending Payment Verification' };
+      renderSuccess(profile, authData.user.email);
+      form.reset();
+      if ($('#selectedPlanText')) $('#selectedPlanText').textContent = 'Choose a plan below or continue with your details.';
+      state.selectedPlan = null;
+    } catch (error) {
+      console.error('VMC registration error:', error);
+      setError(errorBox, friendlyError(error));
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Create Member Account';
+    }
+  }
+
+  async function loginMember(event) {
+    event.preventDefault();
+    const errorBox = $('#loginError');
+    const submit = $('#loginSubmit');
+    const email = ($('#loginEmail')?.value || '').trim().toLowerCase();
+    const password = $('#loginPassword')?.value || '';
+    setError(errorBox, '');
+    if (!email || !password) { setError(errorBox, 'Enter your email and password.'); return; }
+    submit.disabled = true;
+    submit.textContent = 'Signing in…';
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      const { user, profile } = await currentProfile();
+      if (!user || !profile) throw new Error('Your authentication succeeded, but your VMC profile could not be loaded.');
+      if (profile.account_status !== 'active') throw new Error('This account is not active. Contact VMC management.');
+      const management = Boolean(profile.is_admin) || ['owner', 'manager', 'staff'].includes(profile.account_role);
+      if (state.loginMode === 'admin' && !management) {
+        await supabase.auth.signOut();
+        throw new Error('Admin access required. Use Member Login for a customer account.');
+      }
+      if (management) { window.location.assign('dashboard.html'); return; }
+      renderAccount(profile, user.email);
+    } catch (error) {
+      console.error('VMC login error:', error);
+      setError(errorBox, friendlyError(error));
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Sign In';
+    }
+  }
+
+  async function signOut() {
+    const { error } = await supabase.auth.signOut();
+    if (error) { showToast(error.message); return; }
+    closeModal();
+    showToast('You have been signed out.');
+  }
+
+  function setupNavigation() {
+    const nav = $('#nav') || $('.nav');
+    const links = $('.nav-links', nav || document);
+    if (!links) return;
+    const existingActions = $('.nav-actions', nav || document);
+    const auth = document.createElement('div');
+    auth.className = 'vmc-nav-auth';
+    const admin = document.createElement('button');
+    admin.type = 'button'; admin.className = 'vmc-nav-admin'; admin.textContent = 'Admin Login'; admin.dataset.open = 'admin';
+    const member = document.createElement('button');
+    member.type = 'button'; member.textContent = 'Member Login'; member.dataset.open = 'login';
+    const join = document.createElement('button');
+    join.type = 'button'; join.className = 'vmc-nav-join'; join.textContent = 'Join Now'; join.dataset.open = 'register';
+    auth.append(admin, member, join);
+    if (existingActions) existingActions.remove();
+    links.querySelector('.vmc-nav-auth')?.remove();
+    links.appendChild(auth);
+    admin.addEventListener('click', () => openModal('admin'));
+    member.addEventListener('click', () => openModal('login'));
+    join.addEventListener('click', () => openModal('register'));
+
+    const menuButton = $('#menuToggle', nav || document) || $('.menu-toggle', nav || document);
+    if (menuButton) {
+      menuButton.addEventListener('click', () => {
+        nav?.classList.toggle('mobile-open');
+        menuButton.setAttribute('aria-expanded', String(nav?.classList.contains('mobile-open')));
+      });
+    }
+    $$('.nav-links a', nav || document).forEach(link => link.addEventListener('click', () => nav?.classList.remove('mobile-open')));
+  }
+
+  function setupContact() {
+    const phoneLinks = $$('a[href^="tel:"]');
+    phoneLinks.forEach(link => {
+      link.innerHTML = '<span class="vmc-contact-icon" aria-hidden="true">📞</span><span class="sr-only">Call VMC Xtreme</span>';
+      link.setAttribute('aria-label', 'Call VMC Xtreme Fitness');
+    });
+    const contactPhone = $('#contact')?.querySelector('.contact-link:nth-child(2)');
+    if (contactPhone && /991\s*203\s*382/.test(contactPhone.textContent)) {
+      contactPhone.innerHTML = '<span class="vmc-contact-icon" aria-hidden="true">📞</span>';
+      contactPhone.setAttribute('aria-label', 'VMC phone contact');
+    }
+  }
+
+  function setupWaterAndPayments() {
+    const water = $('.water');
+    if (!water) return;
+    water.textContent = 'Hydration: Water 500ml on site for K1000';
+    water.classList.add('vmc-water-below');
+  }
+
+  function setupGallery() {
+    const gallery = $('#gallery');
+    if (!gallery) return;
+    $$('.gallery-item', gallery).forEach(item => {
+      const image = $('img', item);
+      const caption = $('.gallery-item figcaption', item)?.textContent || '';
+      const source = image?.getAttribute('src') || '';
+      const alt = image?.getAttribute('alt') || '';
+      if (/logo|vmc.*xtreme.*fitness.*gym/i.test(`${source} ${alt} ${caption}`)) item.remove();
+    });
+    $$('.gallery-item img', gallery).forEach(image => image.loading = 'lazy');
+  }
+
+  function setupMap() {
+    const contact = $('#contact');
+    if (!contact) return;
+    const iframe = $('iframe', contact);
+    const mapUrl = 'https://www.google.com/maps?q=Chilinde+1,+Sankhawekha,+Malawi&output=embed';
+    if (iframe) {
+      iframe.src = mapUrl;
+      iframe.loading = 'lazy';
+      iframe.referrerPolicy = 'no-referrer-when-downgrade';
+    }
+  }
+
+  function setupLoginAndRegistrationSwitches() {
+    $$('[data-open="login"]').forEach(button => button.addEventListener('click', () => openModal('login')));
+    $$('[data-open="admin"]').forEach(button => button.addEventListener('click', () => openModal('admin')));
+    $$('[data-open="register"]').forEach(button => button.addEventListener('click', () => openModal('register')));
+    $$('[data-switch="login"]').forEach(button => button.addEventListener('click', () => showLogin('member')));
+    $$('[data-switch="register"]').forEach(button => button.addEventListener('click', () => showRegister()));
+    $$('.choose').forEach(button => button.addEventListener('click', () => { openModal('register'); showRegister(button.dataset.plan); }));
+  }
+
+  function setupServices() {
+    $$('[data-service]').forEach(card => card.addEventListener('click', () => {
+      $$('[data-service]').forEach(other => {
+        if (other !== card) { other.classList.remove('active'); other.setAttribute('aria-expanded', 'false'); }
+      });
+      card.classList.toggle('active');
+      card.setAttribute('aria-expanded', String(card.classList.contains('active')));
+    }));
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setupNavigation();
+    setupLoginAndRegistrationSwitches();
+    setupContact();
+    setupWaterAndPayments();
+    setupGallery();
+    setupMap();
+    setupServices();
+    injectPasswordToggles();
+
+    $('#registerForm')?.addEventListener('submit', registerMember);
+    $('#loginForm')?.addEventListener('submit', loginMember);
+    $('#modalClose')?.addEventListener('click', closeModal);
+    $('#modalWrap')?.addEventListener('click', event => { if (event.target === $('#modalWrap')) closeModal(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
+
+    $$('#loginEmail, #loginPassword').forEach(field => field.addEventListener('focus', () => {
+      if (field === $('#loginEmail')) field.value = '';
+    }, { once: true }));
+  });
+
+  window.vmcOpenModal = openModal;
+  window.vmcCloseModal = closeModal;
+  window.vmcShowRegister = showRegister;
 })();

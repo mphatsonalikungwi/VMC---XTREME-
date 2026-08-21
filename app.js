@@ -327,13 +327,14 @@ window.supabaseKey = 'sb_publishable_-ldpCiaxCElX9c7Q6zLqqQ_gHUBunBI';
       if (error) throw error;
       const { user, profile } = await currentProfile();
       if (!user || !profile) throw new Error('Your authentication succeeded, but your VMC profile could not be loaded.');
+      const management = Boolean(profile.is_admin) || ['owner', 'manager', 'staff'].includes(profile.account_role);
       if (!management) {
         const { data: lifecycle, error: lifecycleError } = await supabase.functions.invoke('vmc-member-api', { body: { action: 'status' } });
         if (lifecycleError) throw lifecycleError;
         if (lifecycle?.status === 'reactivation_required') { renderReactivation(lifecycle.profile || profile, user.email); return; }
       }
       if (profile.account_status !== 'active') throw new Error('This account is not active. Contact VMC management.');
-      const management = Boolean(profile.is_admin) || ['owner', 'manager', 'staff'].includes(profile.account_role);
+      
       if (state.loginMode === 'admin' && !management) {
         await supabase.auth.signOut();
         throw new Error('Admin access required. Use Member Login for a customer account.');

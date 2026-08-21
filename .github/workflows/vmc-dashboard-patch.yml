@@ -1,0 +1,45 @@
+name: VMC dashboard patch
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/vmc-dashboard-patch.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch dashboard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('dashboard.html')
+          s=p.read_text()
+          s=s.replace('grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}.stat{', 'grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-bottom:20px}.stat{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:14px;')
+          s=s.replace('@media(max-width:1100px){.app{grid-template-columns:220px 1fr}.cards{grid-template-columns:repeat(2,1fr)}}', '@media(max-width:1100px){.app{grid-template-columns:220px 1fr}.cards{grid-template-columns:repeat(4,minmax(105px,1fr))}.stat{padding:12px}.stat strong{font-size:1.55rem}}')
+          s=s.replace('.cards,.grid2{grid-template-columns:1fr}', '.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.grid2{grid-template-columns:1fr}.stat{aspect-ratio:1/1;padding:12px}.stat span{font-size:.58rem}.stat strong{font-size:1.45rem}')
+          s=s.replace('<div class="notice">Passwords are handled by Supabase Auth. The VMC database never stores staff or customer plaintext passwords.</div>', '')
+          old="${x.registration_status==='Pending Approval'?`<button class=\"btn btn-small btn-light\" data-approve=\"${x.id}\">Approve</button>`:''}${x.payment_status==='Pending Payment Verification'?`<button class=\"btn btn-small btn-red\" data-verify=\"${x.id}\">Verify</button>`:''}"
+          new="${x.registration_status==='Pending Approval'?`<button class=\"btn btn-small btn-light\" data-approve=\"${x.id}\">Approve</button><button class=\"btn btn-small btn-danger\" data-reject-registration=\"${x.id}\">Reject</button>`:''}${x.payment_status==='Pending Payment Verification'?`<button class=\"btn btn-small btn-red\" data-verify=\"${x.id}\">Verify</button>`:''}"
+          s=s.replace(old,new)
+          old2="${x.registration_status==='Pending Approval'?`<button class=\"btn btn-small btn-light\" data-approve=\"${x.id}\">Approve Registration</button>`:''}${x.payment_status==='Pending Payment Verification'?"
+          new2="${x.registration_status==='Pending Approval'?`<button class=\"btn btn-small btn-light\" data-approve=\"${x.id}\">Approve Registration</button><button class=\"btn btn-small btn-danger\" data-reject-registration=\"${x.id}\">Reject Registration</button>`:''}${x.payment_status==='Pending Payment Verification'?"
+          s=s.replace(old2,new2)
+          s=s.replace("if(b.dataset.reject)await verify(b.dataset.reject,'Payment Rejected');", "if(b.dataset.reject)await verify(b.dataset.reject,'Payment Rejected');if(b.dataset.rejectRegistration)await rejectRegistration(b.dataset.rejectRegistration);")
+          marker="async function approve(id){try{await api('approve-registration',{membership_id:id});toast('Registration approved.');await load()}catch(e){toast(e.message)}}"
+          insert=marker+"\nasync function rejectRegistration(id){if(!confirm('Reject this customer registration?'))return;try{await api('reject-registration',{membership_id:id});toast('Registration rejected.');await load()}catch(e){toast(e.message)}}"
+          if 'async function rejectRegistration' not in s:
+              s=s.replace(marker,insert)
+          s=s.replace('Only the primary administrator can change staff access.', 'Only the primary administrator or owner can manage staff access.')
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name 'VMC Xtreme Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add dashboard.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: refine management permissions and dashboard UI [skip ci]'
+          git push

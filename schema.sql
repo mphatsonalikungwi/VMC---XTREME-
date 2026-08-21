@@ -1,5 +1,7 @@
 -- VMC XTREME FITNESS — Supabase member database
--- Run this file in the Supabase SQL Editor.
+-- Safe to run alongside the legacy VMC tables.
+
+create schema if not exists private;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -27,30 +29,13 @@ revoke all on table public.profiles from anon;
 grant select, insert, update on table public.profiles to authenticated;
 grant all on table public.profiles to service_role;
 
-create or replace function public.is_vmc_admin()
+create or replace function private.is_vmc_admin()
 returns boolean language sql stable security definer set search_path = ''
 as $$
   select exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.is_admin = true);
 $$;
 
-revoke all on function public.is_vmc_admin() from public;
-grant execute on function public.is_vmc_admin() to authenticated;
-
-drop policy if exists "Members can read their own profile" on public.profiles;
-drop policy if exists "Members can create their own profile" on public.profiles;
-drop policy if exists "Members can update their own profile" on public.profiles;
-
-create policy "Members can read their own profile" on public.profiles for select to authenticated
-using ((select auth.uid()) = id or (select public.is_vmc_admin()));
-
-create policy "Members can create their own profile" on public.profiles for insert to authenticated
-with check ((select auth.uid()) = id);
-
-create policy "Members can update their own profile" on public.profiles for update to authenticated
-using ((select auth.uid()) = id or (select public.is_vmc_admin()))
-with check ((select auth.uid()) = id or (select public.is_vmc_admin()));
-
-create or replace function public.handle_vmc_new_user()
+create or replace function private.handle_vmc_new_user()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
 begin
@@ -74,15 +59,11 @@ begin
 end;
 $$;
 
-drop trigger if exists on_auth_user_created_vmc on auth.users;
-create trigger on_auth_user_created_vmc after insert on auth.users
-for each row execute function public.handle_vmc_new_user();
-
-create or replace function public.protect_vmc_profile_fields()
+create or replace function private.protect_vmc_profile_fields()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
 begin
-  if not (select public.is_vmc_admin()) then
+  if not (select private.is_vmc_admin()) then
     new.is_admin := old.is_admin;
     new.payment_status := old.payment_status;
   end if;
@@ -91,9 +72,35 @@ begin
 end;
 $$;
 
+revoke all on function private.is_vmc_admin() from public;
+revoke all on function private.handle_vmc_new_user() from public;
+revoke all on function private.protect_vmc_profile_fields() from public;
+
+drop policy if exists "Members can read their own profile" on public.profiles;
+drop policy if exists "Members can create their own profile" on public.profiles;
+drop policy if exists "Members can update their own profile" on public.profiles;
+
+create policy "Members can read their own profile" on public.profiles for select to authenticated
+using ((select auth.uid()) = id or (select private.is_vmc_admin()));
+
+create policy "Members can create their own profile" on public.profiles for insert to authenticated
+with check ((select auth.uid()) = id);
+
+create policy "Members can update their own profile" on public.profiles for update to authenticated
+using ((select auth.uid()) = id or (select private.is_vmc_admin()))
+with check ((select auth.uid()) = id or (select private.is_vmc_admin()));
+
+drop trigger if exists on_auth_user_created_vmc on auth.users;
+create trigger on_auth_user_created_vmc after insert on auth.users
+for each row execute function private.handle_vmc_new_user();
+
 drop trigger if exists protect_vmc_profile_fields on public.profiles;
 create trigger protect_vmc_profile_fields before update on public.profiles
-for each row execute function public.protect_vmc_profile_fields();
+for each row execute function private.protect_vmc_profile_fields();
+
+drop function if exists public.is_vmc_admin();
+drop function if exists public.handle_vmc_new_user();
+drop function if exists public.protect_vmc_profile_fields();
 
 create index if not exists profiles_payment_status_idx on public.profiles(payment_status);
 create index if not exists profiles_membership_tier_idx on public.profiles(membership_tier);

@@ -1,0 +1,120 @@
+/* VMC Owner/Admin Income Intelligence */
+(()=>{
+  const boot=()=>{
+    const wait=()=>{
+      if(!window.sb || !window.state || !window.state.caller){setTimeout(wait,250);return}
+      const caller=window.state.caller;
+      const allowed=!!caller.is_admin || caller.account_role==='owner';
+      if(!allowed)return;
+      if(document.getElementById('vmcIncomeNav'))return;
+      const nav=document.querySelector('.nav');
+      const overview=document.getElementById('overview');
+      if(!nav||!overview)return;
+
+      const style=document.createElement('style');
+      style.id='vmc-income-style';
+      style.textContent=`
+      #vmcIncomeNav{position:relative}
+      #vmcIncomeNav:after{content:'✦';position:absolute;right:9px;color:#f3b63f;font-size:.72rem}
+      .income-hero{position:relative;overflow:hidden;border:1px solid #4a3b17;background:linear-gradient(135deg,#17130a,#111317 55%,#181018);border-radius:14px;padding:20px;margin-bottom:12px;box-shadow:0 18px 60px rgba(0,0,0,.28)}
+      .income-hero:before{content:'✦';position:absolute;right:20px;top:4px;font-size:90px;color:rgba(243,182,63,.08);line-height:1}
+      .income-kicker{font-size:.58rem;text-transform:uppercase;letter-spacing:.16em;color:#f3b63f;font-weight:950}
+      .income-hero h2{margin:6px 0 4px;font-size:1.55rem;letter-spacing:-.04em}
+      .income-hero p{margin:0;color:#aeb2b9;font-size:.75rem;max-width:650px}
+      .income-tools{display:flex;gap:7px;flex-wrap:wrap;align-items:end;margin-top:17px}
+      .income-tools label{display:grid;gap:4px;color:#aeb2b9;font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;font-weight:900}
+      .income-tools input{background:#0b0c0f;color:#fff;border:1px solid #3a3320;border-radius:7px;padding:8px;outline:0}
+      .income-tools input:focus{border-color:#f3b63f;box-shadow:0 0 0 3px rgba(243,182,63,.08)}
+      .income-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}
+      .income-card{position:relative;border:1px solid #292d34;background:#111317;border-radius:11px;padding:15px;overflow:hidden}
+      .income-card.total{border-color:#69511f;background:linear-gradient(145deg,#1b160c,#111317)}
+      .income-card:after{content:'✦';position:absolute;right:8px;bottom:-13px;font-size:48px;color:rgba(255,255,255,.025)}
+      .income-card small{display:block;color:#858b94;text-transform:uppercase;letter-spacing:.08em;font-size:.55rem;font-weight:900}
+      .income-card strong{display:block;margin-top:8px;font-size:1.35rem;line-height:1.05}
+      .income-card.total strong{color:#f3c85f;font-size:1.65rem}
+      .income-card span{display:block;margin-top:5px;color:#777d86;font-size:.58rem}
+      .income-breakdown{display:grid;grid-template-columns:1.25fr .75fr;gap:12px}
+      .income-panel{border:1px solid #292d34;background:#111317;border-radius:11px;overflow:hidden}
+      .income-panel-head{padding:10px 12px;border-bottom:1px solid #292d34;display:flex;justify-content:space-between;align-items:center}
+      .income-panel-head b{font-size:.64rem;text-transform:uppercase;letter-spacing:.07em}
+      .income-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px;border-bottom:1px solid #24272d}
+      .income-row:last-child{border-bottom:0}
+      .income-row b{font-size:.72rem}.income-row small{display:block;color:#777d86;font-size:.59rem;margin-top:2px}
+      .income-row strong{font-size:.78rem}
+      .income-empty{padding:24px;text-align:center;color:#777d86;font-size:.72rem}
+      .income-note{padding:10px 12px;color:#858b94;font-size:.58rem;border-top:1px solid #292d34}
+      @media(max-width:800px){.income-cards{grid-template-columns:repeat(2,1fr)}.income-breakdown{grid-template-columns:1fr}}
+      @media(max-width:500px){.income-cards{grid-template-columns:1fr 1fr}.income-card{padding:12px}.income-card strong{font-size:1.05rem}.income-card.total strong{font-size:1.3rem}}
+      `;
+      document.head.appendChild(style);
+
+      const navBtn=document.createElement('button');
+      navBtn.id='vmcIncomeNav';navBtn.dataset.sec='income';navBtn.textContent='Income';nav.appendChild(navBtn);
+
+      const section=document.createElement('section');
+      section.className='section';section.id='income';
+      section.innerHTML=`
+        <div class="income-hero">
+          <div class="income-kicker">✦ Owner / Admin • Private</div>
+          <h2>Income Intelligence</h2>
+          <p>A clear financial view of verified membership income. Choose a month or any custom period and see exactly what VMC brought in.</p>
+          <div class="income-tools">
+            <label>Month<input id="incomeMonth" type="month"></label>
+            <button class="btn amber" id="incomeMonthBtn">View Month</button>
+            <label>From<input id="incomeFrom" type="date"></label>
+            <label>To<input id="incomeTo" type="date"></label>
+            <button class="btn dark" id="incomeRangeBtn">View Period</button>
+          </div>
+        </div>
+        <div class="income-cards">
+          <div class="income-card"><small>Day subscriptions</small><strong id="incomeDay">K0</strong><span>Verified income</span></div>
+          <div class="income-card"><small>Week subscriptions</small><strong id="incomeWeek">K0</strong><span>Verified income</span></div>
+          <div class="income-card"><small>Monthly subscriptions</small><strong id="incomeMonthValue">K0</strong><span>Verified income</span></div>
+          <div class="income-card total"><small>Total income</small><strong id="incomeTotal">K0</strong><span id="incomePeriodLabel">Select a period</span></div>
+        </div>
+        <div class="income-breakdown">
+          <div class="income-panel"><div class="income-panel-head"><b>Income breakdown</b><span id="incomeStatus" class="badge a">Ready</span></div><div id="incomeRows"></div><div class="income-note">Only payments that VMC has verified and approved are counted. Historical membership records remain preserved but do not double-count a payment.</div></div>
+          <div class="income-panel"><div class="income-panel-head"><b>Period</b></div><div id="incomeSummaryText" class="income-empty">Choose a month or custom date range.</div></div>
+        </div>`;
+      document.querySelector('.content').appendChild(section);
+
+      const fmt=n=>'K'+Number(n||0).toLocaleString('en-MW');
+      const isoMonth=()=>{const d=new Date();return d.toISOString().slice(0,7)};
+      const monthBounds=m=>{const [y,mo]=m.split('-').map(Number);const start=`${y}-${String(mo).padStart(2,'0')}-01`;const end=new Date(Date.UTC(y,mo,0)).toISOString().slice(0,10);return [start,end]};
+      const setStatus=(text,cls='a')=>{const e=document.getElementById('incomeStatus');e.textContent=text;e.className='badge '+cls};
+      const loadIncome=async(start,end)=>{
+        setStatus('Loading…','a');
+        try{
+          const {data,error}=await sb.rpc('get_owner_income_summary',{p_start:start,p_end:end});
+          if(error)throw error;
+          document.getElementById('incomeDay').textContent=fmt(data.day_income);
+          document.getElementById('incomeWeek').textContent=fmt(data.week_income);
+          document.getElementById('incomeMonthValue').textContent=fmt(data.month_income);
+          document.getElementById('incomeTotal').textContent=fmt(data.total_income);
+          const label=`${new Date(start+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})} → ${new Date(end+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`;
+          document.getElementById('incomePeriodLabel').textContent=label;
+          document.getElementById('incomeSummaryText').innerHTML=`<div style="padding:18px"><b style="font-size:.8rem">${label}</b><p style="color:#777d86;font-size:.68rem;line-height:1.6">Day: ${fmt(data.day_income)}<br>Week: ${fmt(data.week_income)}<br>Month: ${fmt(data.month_income)}<br><strong style="color:#f3c85f">Total: ${fmt(data.total_income)}</strong></p></div>`;
+          document.getElementById('incomeRows').innerHTML=`<div class="income-row"><div><b>Day subscriptions</b><small>Per Day</small></div><strong>${fmt(data.day_income)}</strong></div><div class="income-row"><div><b>Week subscriptions</b><small>Per Week</small></div><strong>${fmt(data.week_income)}</strong></div><div class="income-row"><div><b>Monthly subscriptions</b><small>Per Month</small></div><strong>${fmt(data.month_income)}</strong></div><div class="income-row"><div><b>Total verified income</b><small>All qualifying payments</small></div><strong>${fmt(data.total_income)}</strong></div>`;
+          setStatus('Verified','g');
+        }catch(e){setStatus('Unavailable','r');document.getElementById('incomeRows').innerHTML=`<div class="income-empty">${String(e.message||'Unable to load income summary.')}</div>`;}
+      };
+      const showSection=()=>{
+        document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+        section.classList.add('active');
+        document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+        navBtn.classList.add('active');
+        const title=document.getElementById('pageTitle');if(title)title.textContent='Income Intelligence';
+        const side=document.getElementById('side');if(side)side.classList.remove('open');
+        window.scrollTo({top:0,behavior:'smooth'});
+        const m=document.getElementById('incomeMonth').value||isoMonth();document.getElementById('incomeMonth').value=m;
+        const [s,e]=monthBounds(m);loadIncome(s,e);
+      };
+      navBtn.addEventListener('click',showSection);
+      document.getElementById('incomeMonthBtn').addEventListener('click',()=>{const m=document.getElementById('incomeMonth').value||isoMonth();const [s,e]=monthBounds(m);loadIncome(s,e)});
+      document.getElementById('incomeRangeBtn').addEventListener('click',()=>{const s=document.getElementById('incomeFrom').value,e=document.getElementById('incomeTo').value;if(!s||!e||e<s){setStatus('Invalid period','r');return}loadIncome(s,e)});
+      const m=document.getElementById('incomeMonth');m.value=isoMonth();
+    };
+    wait();
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();

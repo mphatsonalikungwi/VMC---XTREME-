@@ -1,12 +1,11 @@
 import fs from 'node:fs';
 
-const file = 'dashboard.html';
-let s = fs.readFileSync(file, 'utf8');
-
 // Cloudflare-only presentation guard. Backend authorization remains authoritative.
-// Inject a self-contained guard instead of relying on brittle source anchors in dashboard.html.
+const dashboardFile = 'dashboard.html';
+let dashboard = fs.readFileSync(dashboardFile, 'utf8');
+
 const marker = 'VMC_CLOUDFLARE_ROLE_GUARD_V3';
-if (!s.includes(marker)) {
+if (!dashboard.includes(marker)) {
   const guard = `<style id="${marker}">.vmc-role-hidden{display:none!important}</style><script>
 (function(){
   const getState=()=>{try{return (typeof state!=='undefined')?state:null;}catch(e){return null;}};
@@ -31,9 +30,59 @@ if (!s.includes(marker)) {
   apply();
 })();
 </script>`;
-  if (!s.includes('</body>')) throw new Error('VMC build patch anchor not found: </body>');
-  s=s.replace('</body>',guard+'</body>');
+  if (!dashboard.includes('</body>')) throw new Error('VMC build patch anchor not found: </body>');
+  dashboard=dashboard.replace('</body>',guard+'</body>');
+}
+fs.writeFileSync(dashboardFile,dashboard);
+
+// Customer-facing language pass. These are presentation-only replacements;
+// database fields, API actions, permissions and internal identifiers are untouched.
+const languageFiles = ['index.html','app.js','dashboard.html'];
+const language = [
+  ['Admin Login','Management Login'],
+  ['Member Login','My VMC Account'],
+  ['Create Member Account','Join VMC'],
+  ['VMC Member Onboarding','Welcome to VMC'],
+  ['Member Account','My VMC Account'],
+  ['VMC Management Account','Management Account'],
+  ['Secure Your VMC Account','Keep Your Account Secure'],
+  ['Payment status','Payment'],
+  ['Payment channel','Payment method'],
+  ['Receipt / Reference','Payment reference'],
+  ['Pending Payment Verification','Payment being reviewed'],
+  ['VMC management will verify payment','We will confirm your payment'],
+  ['Your VMC account is connected to the member system.','Your VMC account is ready to use.'],
+  ['Registration received.','Welcome to VMC!'],
+  ['Your VMC member account has been created. Your membership is now waiting for VMC payment verification.','Welcome to VMC — your account has been created and your payment is being reviewed.'],
+  ['Change your password.','Create Your New Password'],
+  ['Password changed successfully.','Your password has been updated successfully.'],
+  ['This account was created by VMC management with an initial password. Please replace it now.','For your security, please create your own password before continuing.'],
+  ['For your protection, VMC requires you to create a new password before continuing.','For your security, please create a new password before continuing.'],
+  ['Choose your new membership.','Choose Your Next Membership'],
+  ['Your previous membership has expired. You can choose a different service for this renewal.','Welcome back! Choose the membership that suits you best.'],
+  ['Previous service','Previous membership'],
+  ['New membership','Membership'],
+  ['Session','Service type'],
+  ['Membership tier','Membership plan'],
+  ['Pending Payments','Payments to Review'],
+  ['Pending Approvals','Approvals'],
+  ['Renewals & Expiry','Memberships'],
+  ['Staff Management','Team Management'],
+  ['Command Center','VMC Overview'],
+  ['VMC operations at a glance.','A quick look at what needs attention.'],
+  ['Immediate Attention','Needs Attention'],
+  ['Registered Customers','Customers'],
+  ['Account','Account'],
+  ['Actions','Options'],
+  ['Status','Current status'],
+  ['Payment verification','Payment review'],
+  ['Owner/Admin actions','Owner/Admin only']
+];
+
+for (const file of languageFiles) {
+  let text=fs.readFileSync(file,'utf8');
+  for (const [from,to] of language) text=text.split(from).join(to);
+  fs.writeFileSync(file,text);
 }
 
-fs.writeFileSync(file,s);
-console.log('VMC Cloudflare build patch applied: Immediate Attention and approval navigation are Owner/Admin-only.');
+console.log('VMC Cloudflare build completed: role visibility and customer-friendly language applied.');

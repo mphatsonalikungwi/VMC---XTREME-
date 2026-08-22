@@ -1,0 +1,51 @@
+name: Fix management attention visibility
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-dashboard:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: hide immediate attention for non-approvers') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch dashboard role visibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('dashboard.html')
+          s = p.read_text(encoding='utf-8')
+          old = '.vmc-role-hidden{display:none!important}'
+          new = '.vmc-role-hidden{display:none!important}.vmc-attention-hidden{display:none!important}'
+          if old not in s:
+              raise SystemExit('role CSS anchor not found')
+          s = s.replace(old, new, 1)
+          old = '<div class="panel"><div class="head"><b>Immediate Attention</b><button class="btn dark" data-sec-link="approvals">Open</button>'
+          new = '<div class="panel" id="immediateAttentionPanel"><div class="head"><b>Immediate Attention</b><button class="btn dark" data-sec-link="approvals">Open</button>'
+          if old not in s:
+              raise SystemExit('attention panel anchor not found')
+          s = s.replace(old, new, 1)
+          old = "const addAllowed=state.caller?.is_admin||state.caller?.account_role==='owner';$('#addCustomerBtn').style.display=addAllowed?'':'none';$('#addCustomerBtn2').style.display=addAllowed?'':'none';const canApprove=state.caller?.is_admin||state.caller?.account_role==='owner';$('#topAttention').textContent=canApprove?'':''"
+          new = "const addAllowed=state.caller?.is_admin||state.caller?.account_role==='owner';$('#addCustomerBtn').style.display=addAllowed?'':'none';$('#addCustomerBtn2').style.display=addAllowed?'':'none';const canApprove=state.caller?.is_admin||state.caller?.account_role==='owner';$('#topAttention').textContent=canApprove?'':'';$('#immediateAttentionPanel').classList.toggle('vmc-attention-hidden',!canApprove);const approvalNav=document.querySelector('.nav button[data-sec=\"approvals\"]');if(approvalNav)approvalNav.classList.toggle('vmc-role-hidden',!canApprove);if(!canApprove&&state.current==='approvals')setSection('overview',false)"
+          if old not in s:
+              raise SystemExit('renderAll anchor not found')
+          s = s.replace(old, new, 1)
+          old = "$$('.nav button').forEach(b=>b.addEventListener('click',()=>setSection(b.dataset.sec)));document.addEventListener('click',e=>{const link=e.target.closest('[data-sec-link]');if(link){setSection(link.dataset.secLink);return}"
+          new = "$$('.nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.sec==='approvals'&&!((state.caller?.is_admin)||(state.caller?.account_role==='owner')))return;if(b.dataset.sec==='staff'&&!((state.caller?.is_admin)||(state.caller?.account_role==='owner')))return;setSection(b.dataset.sec)}));document.addEventListener('click',e=>{const link=e.target.closest('[data-sec-link]');if(link){if(link.dataset.secLink==='approvals'&&!((state.caller?.is_admin)||(state.caller?.account_role==='owner')))return;setSection(link.dataset.secLink);return}"
+          if old not in s:
+              raise SystemExit('navigation anchor not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name 'VMC Automation'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dashboard.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: hide immediate attention for non-approvers'
+          git push

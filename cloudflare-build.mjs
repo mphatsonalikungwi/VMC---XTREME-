@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 
 const patch=fs.readFileSync('cloudflare-ui-patch.js','utf8');
+const security=fs.readFileSync('vmc-security.js','utf8');
 const scriptTag='<script>\n'+patch+'\n</script>';
+const securityTag='<script id="VMC_SECURITY_CONTROLS">\n'+security+'\n</script>';
 
 let index=fs.readFileSync('index.html','utf8');
 let app=fs.readFileSync('app.js','utf8');
@@ -31,6 +33,10 @@ if(!app.includes('amountForDuration')){
  app=app.replace("membership_amount:String(amount),payment_channel:d.payment_channel,", "membership_amount:String(amount),membership_duration_count:String(count),membership_duration_unit:unit,payment_channel:d.payment_channel,");
 }
 
+// Route browser sign-in through the server-side lockout policy, then keep the
+// existing application lifecycle intact by returning a normal Supabase session.
+app=app.replace('supabase.auth.signInWithPassword({email,password})','window.vmcSecureLogin(email,password)');
+
 dashboard=dashboard.replace('vmc-admin-api-v2','vmc-admin-api-v3');
 for(const [a,b] of [
  ['Command Center','VMC Overview'],['Immediate Attention','Needs Attention'],['Renewals & Expiry','Memberships'],['Staff Management','Team Management'],
@@ -49,6 +55,8 @@ dashboard=dashboard.replace("const owner=state.caller?.is_admin?'<option value=\
 
 if(!index.includes('VMC_CLOUDFLARE_UI_PATCH'))index=index.replace('</body>','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script></body>');
 if(!dashboard.includes('VMC_CLOUDFLARE_UI_PATCH'))dashboard=dashboard.replace('</body>','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script></body>');
+if(!index.includes('VMC_SECURITY_CONTROLS'))index=index.replace('</body>',securityTag+'</body>');
+if(!dashboard.includes('VMC_SECURITY_CONTROLS'))dashboard=dashboard.replace('</body>',securityTag+'</body>');
 
 fs.writeFileSync('index.html',index);fs.writeFileSync('app.js',app);fs.writeFileSync('dashboard.html',dashboard);
 console.log('VMC Cloudflare build completed.');

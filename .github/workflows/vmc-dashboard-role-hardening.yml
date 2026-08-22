@@ -1,0 +1,38 @@
+name: VMC dashboard role hardening
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  harden-dashboard:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Apply role-safe dashboard presentation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('dashboard.html')
+          s=p.read_text()
+          marker='</style>'
+          css='''\n/* VMC role presentation guard: backend authorization remains authoritative. */\n.vmc-role-hidden{display:none!important}\n'''
+          if '/* VMC role presentation guard:' not in s:
+              s=s.replace(marker,css+marker,1)
+          marker='</script></body></html>'
+          guard=r'''\n<script>\n(function(){\n  const ownerAdmin=['admin','super_owner','owner'];\n  const norm=v=>String(v||'').toLowerCase();\n  const hide=el=>{if(el)el.classList.add('vmc-role-hidden')};\n  const show=el=>{if(el)el.classList.remove('vmc-role-hidden')};\n  async function vmcRoleGuard(){\n    try{\n      if(typeof sb==='undefined'||!sb||typeof sb.auth?.getSession!=='function')return;\n      const {data}=await sb.auth.getSession(); const token=data?.session?.access_token; if(!token)return;\n      const api=(typeof ADMIN_API==='string'?ADMIN_API:(location.origin+'/functions/v1/vmc-admin-api-v2'));\n      const r=await fetch(api+'/me',{headers:{Authorization:'Bearer '+token}}); const j=await r.json(); if(!r.ok)return;\n      const u=j.user||j; const role=norm(u.role||u.account_role); const isOwnerAdmin=ownerAdmin.includes(role)||Boolean(u.is_admin);\n      // Customer creation and approval/payment verification are Owner/Admin only.\n      if(!isOwnerAdmin){\n        hide(document.getElementById('addCustomerBtn')); hide(document.getElementById('addCustomerBtn2'));\n        hide(document.querySelector('[data-sec="approvals"]')); hide(document.getElementById('approvals'));\n        hide(document.querySelector('[data-sec-link="approvals"]'));\n        hide(document.getElementById('sPayments')?.closest('.stat')); hide(document.getElementById('sApprovals')?.closest('.stat'));\n      }else{\n        show(document.getElementById('addCustomerBtn')); show(document.getElementById('addCustomerBtn2')); show(document.querySelector('[data-sec="approvals"]'));\n      }\n      // The visibility hierarchy is enforced by the backend. The UI never invents higher roles.\n      // Owners may manage lower roles but never receive Admin accounts; Managers receive Manager/Staff; Staff receive Staff.\n      const staffSection=document.getElementById('staff'),staffNav=document.getElementById('staffNav');\n      if(role==='staff'){hide(staffSection);hide(staffNav)}\n      // Keep renewal creation available to operational management; approval remains Owner/Admin-only.\n      document.querySelectorAll('[data-act="approve"],[data-act="reject"],[data-act="verify"],[data-act="reject-payment"]').forEach(el=>{if(!isOwnerAdmin)hide(el)});\n    }catch(e){console.warn('VMC role presentation guard:',e)}\n  }\n  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(vmcRoleGuard,50));else setTimeout(vmcRoleGuard,50);\n  new MutationObserver(()=>vmcRoleGuard()).observe(document.body,{childList:true,subtree:true});\n})();\n</script>\n'''
+          if 'VMC role presentation guard' not in s:
+              s=s.replace('</body></html>',guard+'</body></html>',1)
+          p.write_text(s)
+          PY
+      - name: Commit hardened dashboard
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "harden dashboard role-based controls"
+          git push origin HEAD:main

@@ -22,7 +22,9 @@
   window.vmcSecureLogin = async function(email, password){
     const { data, error } = await sb.functions.invoke(LOGIN_FN, { body:{ email, password } });
     if (error) {
-      const msg = error?.context?.body?.error || error?.message || 'We could not sign you in.';
+      let msg = '';
+      try { if (error.context && typeof error.context.json === 'function') { const body = await error.context.json(); msg = body?.error || ''; } } catch (_) {}
+      msg = msg || error?.message || 'We could not sign you in.';
       return { data:null, error:new Error(msg) };
     }
     if (data?.error) return { data:null, error:new Error(data.error) };

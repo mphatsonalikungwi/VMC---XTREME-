@@ -3,29 +3,35 @@ import fs from 'node:fs';
 const file = 'dashboard.html';
 let s = fs.readFileSync(file, 'utf8');
 
-const replacements = [
-  [
-    '.vmc-role-hidden{display:none!important}',
-    '.vmc-role-hidden{display:none!important}.vmc-attention-hidden{display:none!important}'
-  ],
-  [
-    '<div class="panel"><div class="head"><b>Immediate Attention</b><button class="btn dark" data-sec-link="approvals">Open</button>',
-    '<div class="panel" id="immediateAttentionPanel"><div class="head"><b>Immediate Attention</b><button class="btn dark" data-sec-link="approvals">Open</button>'
-  ],
-  [
-    "const addAllowed=state.caller?.is_admin||state.caller?.account_role==='owner';$('#addCustomerBtn').style.display=addAllowed?'':'none';$('#addCustomerBtn2').style.display=addAllowed?'':'none';const canApprove=state.caller?.is_admin||state.caller?.account_role==='owner';$('#topAttention').textContent=canApprove?'':''",
-    "const addAllowed=state.caller?.is_admin||state.caller?.account_role==='owner';$('#addCustomerBtn').style.display=addAllowed?'':'none';$('#addCustomerBtn2').style.display=addAllowed?'':'none';const canApprove=state.caller?.is_admin||state.caller?.account_role==='owner';$('#topAttention').textContent=canApprove?'':'';$('#immediateAttentionPanel').classList.toggle('vmc-attention-hidden',!canApprove);const approvalNav=document.querySelector('.nav button[data-sec=\"approvals\"]');if(approvalNav)approvalNav.classList.toggle('vmc-role-hidden',!canApprove);if(!canApprove&&state.current==='approvals')setSection('overview',false)"
-  ],
-  [
-    "$$('.nav button').forEach(b=>b.addEventListener('click',()=>setSection(b.dataset.sec)));document.addEventListener('click',e=>{const link=e.target.closest('[data-sec-link]');if(link){setSection(link.dataset.secLink);return}",
-    "$$('.nav button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.sec==='approvals'&&!((state.caller?.is_admin)||(state.caller?.account_role==='owner')))return;if(b.dataset.sec==='staff'&&!((state.caller?.is_admin)||(state.caller?.account_role==='owner')))return;setSection(b.dataset.sec)}));document.addEventListener('click',e=>{const link=e.target.closest('[data-sec-link]');if(link){if(link.dataset.secLink==='approvals'&&!((state.caller?.is_admin)||(state.caller?.account_role==='owner')))return;setSection(link.dataset.secLink);return}"
-  ]
-];
-
-for (const [from, to] of replacements) {
-  if (!s.includes(from)) throw new Error(`VMC build patch anchor not found: ${from.slice(0,80)}`);
-  s = s.replace(from, to);
+// Cloudflare-only presentation guard. Backend authorization remains authoritative.
+// Inject a self-contained guard instead of relying on brittle source anchors in dashboard.html.
+const marker = 'VMC_CLOUDFLARE_ROLE_GUARD_V2';
+if (!s.includes(marker)) {
+  const guard = `<style id="${marker}">.vmc-role-hidden{display:none!important}</style><script>
+(function(){
+  const allowed=()=>{try{return !!(window.state&&state.caller&&(state.caller.is_admin===true||String(state.caller.account_role||'').toLowerCase()==='owner'));}catch(e){return false;}};
+  const apply=()=>{
+    const ok=allowed();
+    const panel=[...document.querySelectorAll('.panel')].find(p=>p.querySelector('.head b')?.textContent?.trim().toLowerCase()==='immediate attention');
+    if(panel) panel.classList.toggle('vmc-role-hidden',!ok);
+    document.querySelectorAll('.nav button[data-sec="approvals"]').forEach(el=>el.classList.toggle('vmc-role-hidden',!ok));
+    document.querySelectorAll('[data-sec-link="approvals"]').forEach(el=>el.classList.toggle('vmc-role-hidden',!ok));
+    if(!ok && window.state && state.current==='approvals' && typeof window.setSection==='function'){
+      try{setSection('overview',false);}catch(e){}
+    }
+  };
+  let tries=0;
+  const timer=setInterval(()=>{apply();if(allowed()||tries++>40)clearInterval(timer);},250);
+  document.addEventListener('click',e=>{
+    const t=e.target.closest('[data-sec-link="approvals"],.nav button[data-sec="approvals"]');
+    if(t&&!allowed()){e.preventDefault();e.stopImmediatePropagation();}
+  },true);
+  apply();
+})();
+</script>`;
+  if (!s.includes('</body>')) throw new Error('VMC build patch anchor not found: </body>');
+  s=s.replace('</body>',guard+'</body>');
 }
 
-fs.writeFileSync(file, s);
+fs.writeFileSync(file,s);
 console.log('VMC Cloudflare build patch applied: Immediate Attention and approval navigation are Owner/Admin-only.');

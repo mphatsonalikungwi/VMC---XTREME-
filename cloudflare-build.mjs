@@ -3,9 +3,11 @@ import fs from 'node:fs';
 const patch=fs.readFileSync('cloudflare-ui-patch.js','utf8');
 const security=fs.readFileSync('vmc-security.js','utf8');
 const income=fs.readFileSync('income-dashboard.js','utf8');
+const language=fs.readFileSync('unit01-language.js','utf8');
 const scriptTag='<script>\n'+patch+'\n</script>';
 const securityTag='<script id="VMC_SECURITY_CONTROLS">\n'+security+'\n</script>';
 const incomeTag='<script id="VMC_OWNER_INCOME">\n'+income+'\n</script>';
+const languageTag='<script id="VMC_UNIT01_LANGUAGE">\n'+language+'\n</script>';
 
 let index=fs.readFileSync('index.html','utf8');
 let app=fs.readFileSync('app.js','utf8');
@@ -58,6 +60,8 @@ if(!dashboard.includes('VMC_CLOUDFLARE_UI_PATCH'))dashboard=dashboard.replace('<
 if(!index.includes('VMC_SECURITY_CONTROLS'))index=index.replace('</body>',securityTag+'</body>');
 if(!dashboard.includes('VMC_SECURITY_CONTROLS'))dashboard=dashboard.replace('</body>',securityTag+'</body>');
 if(!dashboard.includes('VMC_OWNER_INCOME'))dashboard=dashboard.replace('</body>',incomeTag+'</body>');
+if(!index.includes('VMC_UNIT01_LANGUAGE'))index=index.replace('</body>',languageTag+'</body>');
+if(!dashboard.includes('VMC_UNIT01_LANGUAGE'))dashboard=dashboard.replace('</body>',languageTag+'</body>');
 
 fs.writeFileSync('index.html',index);fs.writeFileSync('app.js',app);fs.writeFileSync('dashboard.html',dashboard);
 console.log('VMC Cloudflare build completed.');

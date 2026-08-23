@@ -1,6 +1,6 @@
 (function(){
   'use strict';
-  const hydration='HYDRATION: 500ml water botter available within the site at K1000';
+  const hydration='HYDRATION: 500ml water bottle available within the site at K1000';
   const replacements=[
     [/\bJWT\b/gi,'secure sign-in'],
     [/\bAPI\b/gi,'VMC service'],

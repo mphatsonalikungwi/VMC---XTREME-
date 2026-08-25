@@ -10,12 +10,14 @@
   ];
   function clean(root=document.body){
     if(!root)return;
-    root.querySelectorAll('.water').forEach(el=>{el.textContent=hydration});
+    root.querySelectorAll('.water').forEach(el=>{
+      if(el.textContent!==hydration)el.textContent=hydration;
+    });
     const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
     const nodes=[];
     while(walker.nextNode()){
       const n=walker.currentNode;
-      if(n.parentElement && !['SCRIPT','STYLE','NOSCRIPT'].includes(n.parentElement.tagName))nodes.push(n);
+      if(n.parentElement&&!['SCRIPT','STYLE','NOSCRIPT'].includes(n.parentElement.tagName))nodes.push(n);
     }
     nodes.forEach(n=>{
       let v=n.nodeValue;

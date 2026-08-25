@@ -21,5 +21,5 @@ function buildWizard(){
 }
 function patchSignupForDuration(){const client=window.vmcSupabase;if(!client||client.__vmcDurationPatched)return;const original=client.auth.signUp.bind(client.auth);client.auth.signUp=async credentials=>{const form=document.getElementById('registerForm');if(form&&credentials?.options){const tier=document.getElementById('tier')?.value,session=document.getElementById('session')?.value,count=Math.max(1,Math.min(3650,parseInt(document.getElementById('vmcDuration')?.value,10)||1)),unit=document.getElementById('vmcDurationUnit')?.value||'month',prices={'Per Day':{Single:2000,Double:3000},'Per Week':{Single:8000,Double:10000},'Per Month':{Single:30000,Double:35000}},base=prices[tier]?.[session]||0;credentials={...credentials,options:{...credentials.options,data:{...(credentials.options.data||{}),membership_amount:String(base*count),membership_duration_count:count,membership_duration_unit:unit}}}}return original(credentials)};client.__vmcDurationPatched=true}
 function start(){buildWizard();const core=document.createElement('script');core.src='app-core.js';core.async=false;core.onload=patchSignupForDuration;document.head.appendChild(core)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+start();
 })();

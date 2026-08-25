@@ -13,6 +13,5 @@ window.vmcSecureLogin=async function(email,password){const {data,error}=await sb
 const originalInvoke=sb.functions.invoke.bind(sb.functions);
 sb.functions.invoke=async function(name,options){const result=await originalInvoke(name,options);try{const action=options?.body?.action;if(name==='vmc-member-api-v2'&&action==='reactivate'&&!result.error&&!result.data?.error){localStorage.setItem('vmcWelcomeMode','reactivated');setTimeout(()=>location.assign('customer-dashboard.html'),200)}}catch(_){}return result};
 const routeCustomer=async()=>{if(location.pathname.endsWith('/customer-dashboard.html')||location.pathname.endsWith('/dashboard.html'))return;try{const {data:{user}}=await sb.auth.getUser();if(!user)return;const {data:p}=await sb.from('profiles').select('account_role,is_admin,account_status').eq('id',user.id).maybeSingle();if(!p||p.account_status!=='active')return;const management=Boolean(p.is_admin)||['owner','manager','staff'].includes(p.account_role);if(!management)location.assign('customer-dashboard.html')}catch(_) {}};
-sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED')setTimeout(routeCustomer,150)});
-setTimeout(routeCustomer,250);
+sb.auth.onAuthStateChange(event=>{if(event==='SIGNED_IN')setTimeout(routeCustomer,150)});
 })();

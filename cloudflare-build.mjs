@@ -63,7 +63,7 @@ dashboard=dashboard.replace("const owner=state.caller?.is_admin?'<option value=\
 function upsert(html,id,tag){
  const re=new RegExp('<script\\s+id=["\\\']'+id+'["\\\'][\\s\\S]*?<\\/script>','i');
  if(re.test(html)) return html.replace(re,tag);
- return html.replace(/<\\/body>/i,tag+'</body>');
+ return html.replace(/<\/body>/i,tag+'</body>');
 }
 index=upsert(index,'VMC_CLOUDFLARE_UI_PATCH','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script>');
 dashboard=upsert(dashboard,'VMC_CLOUDFLARE_UI_PATCH','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script>');

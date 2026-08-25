@@ -5,11 +5,13 @@ const fixesV2=fs.readFileSync('cloudflare-ui-fixes-v2.js','utf8');
 const security=fs.readFileSync('vmc-security.js','utf8');
 const income=fs.readFileSync('income-dashboard.js','utf8');
 const language=fs.readFileSync('unit01-language.js','utf8');
+const registrationAlignment=fs.readFileSync('cloudflare-registration-alignment.js','utf8');
 const scriptTag='<script>\n'+patch+'\n</script>';
 const fixesV2Tag='<script id="VMC_UI_FIXES_V2">\n'+fixesV2+'\n</script>';
 const securityTag='<script id="VMC_SECURITY_CONTROLS">\n'+security+'\n</script>';
 const incomeTag='<script id="VMC_OWNER_INCOME">\n'+income+'\n</script>';
 const languageTag='<script id="VMC_UNIT01_LANGUAGE">\n'+language+'\n</script>';
+const registrationAlignmentTag='<script id="VMC_REGISTRATION_ALIGNMENT">\n'+registrationAlignment+'\n</script>';
 
 let index=fs.readFileSync('index.html','utf8');
 let app=fs.readFileSync('app.js','utf8');
@@ -41,7 +43,7 @@ if(!app.includes('amountForDuration')){
 
 app=app.replace('supabase.auth.signInWithPassword({email,password})','window.vmcSecureLogin(email,password)');
 
-dashboard=dashboard.replace('vmc-admin-api-v2','vmc-admin-api-v3');
+dashboard=dashboard.replace('vmc-admin-api-v2','vmc-admin-api-v5');
 for(const [a,b] of [
  ['Command Center','VMC Overview'],['Immediate Attention','Needs Attention'],['Renewals & Expiry','Memberships'],['Staff Management','Team Management'],
  ['Payment Channel','Payment Method'],['Receipt / Reference','Payment Reference'],['Owner/Admin action','Owner/Admin only'],['Owner/Admin actions','Owner/Admin only'],
@@ -66,6 +68,8 @@ if(!dashboard.includes('VMC_SECURITY_CONTROLS'))dashboard=dashboard.replace('</b
 if(!dashboard.includes('VMC_OWNER_INCOME'))dashboard=dashboard.replace('</body>',incomeTag+'</body>');
 if(!index.includes('VMC_UNIT01_LANGUAGE'))index=index.replace('</body>',languageTag+'</body>');
 if(!dashboard.includes('VMC_UNIT01_LANGUAGE'))dashboard=dashboard.replace('</body>',languageTag+'</body>');
+if(!index.includes('VMC_REGISTRATION_ALIGNMENT'))index=index.replace('</body>',registrationAlignmentTag+'</body>');
+if(!dashboard.includes('VMC_REGISTRATION_ALIGNMENT'))dashboard=dashboard.replace('</body>',registrationAlignmentTag+'</body>');
 
 fs.writeFileSync('index.html',index);fs.writeFileSync('app.js',app);fs.writeFileSync('dashboard.html',dashboard);
 console.log('VMC Cloudflare build completed.');

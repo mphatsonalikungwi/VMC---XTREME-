@@ -6,12 +6,13 @@ const security=fs.readFileSync('vmc-security.js','utf8');
 const income=fs.readFileSync('income-dashboard.js','utf8');
 const language=fs.readFileSync('unit01-language.js','utf8');
 const registrationAlignment=fs.readFileSync('cloudflare-registration-alignment.js','utf8');
-const scriptTag='<script>\n'+patch+'\n</script>';
+const hardening=fs.readFileSync('cloudflare-final-hardening.js','utf8');
 const fixesV2Tag='<script id="VMC_UI_FIXES_V2">\n'+fixesV2+'\n</script>';
 const securityTag='<script id="VMC_SECURITY_CONTROLS">\n'+security+'\n</script>';
 const incomeTag='<script id="VMC_OWNER_INCOME">\n'+income+'\n</script>';
 const languageTag='<script id="VMC_UNIT01_LANGUAGE">\n'+language+'\n</script>';
 const registrationAlignmentTag='<script id="VMC_REGISTRATION_ALIGNMENT">\n'+registrationAlignment+'\n</script>';
+const hardeningTag='<script id="VMC_FINAL_HARDENING">\n'+hardening+'\n</script>';
 
 let index=fs.readFileSync('index.html','utf8');
 let app=fs.readFileSync('app.js','utf8');
@@ -59,17 +60,19 @@ if(!dashboard.includes('name="duration_count"')){
 
 dashboard=dashboard.replace("const owner=state.caller?.is_admin?'<option value=\"owner\">Owner</option>':'';", "const owner='';");
 
-if(!index.includes('VMC_CLOUDFLARE_UI_PATCH'))index=index.replace('</body>','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script></body>');
-if(!dashboard.includes('VMC_CLOUDFLARE_UI_PATCH'))dashboard=dashboard.replace('</body>','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script></body>');
-if(!index.includes('VMC_UI_FIXES_V2'))index=index.replace('</body>',fixesV2Tag+'</body>');
-if(!dashboard.includes('VMC_UI_FIXES_V2'))dashboard=dashboard.replace('</body>',fixesV2Tag+'</body>');
-if(!index.includes('VMC_SECURITY_CONTROLS'))index=index.replace('</body>',securityTag+'</body>');
-if(!dashboard.includes('VMC_SECURITY_CONTROLS'))dashboard=dashboard.replace('</body>',securityTag+'</body>');
-if(!dashboard.includes('VMC_OWNER_INCOME'))dashboard=dashboard.replace('</body>',incomeTag+'</body>');
-if(!index.includes('VMC_UNIT01_LANGUAGE'))index=index.replace('</body>',languageTag+'</body>');
-if(!dashboard.includes('VMC_UNIT01_LANGUAGE'))dashboard=dashboard.replace('</body>',languageTag+'</body>');
-if(!index.includes('VMC_REGISTRATION_ALIGNMENT'))index=index.replace('</body>',registrationAlignmentTag+'</body>');
-if(!dashboard.includes('VMC_REGISTRATION_ALIGNMENT'))dashboard=dashboard.replace('</body>',registrationAlignmentTag+'</body>');
+function upsert(html,id,tag){
+ const re=new RegExp('<script\\s+id=["\\\']'+id+'["\\\'][\\s\\S]*?<\\/script>','i');
+ if(re.test(html)) return html.replace(re,tag);
+ return html.replace(/<\\/body>/i,tag+'</body>');
+}
+index=upsert(index,'VMC_CLOUDFLARE_UI_PATCH','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script>');
+dashboard=upsert(dashboard,'VMC_CLOUDFLARE_UI_PATCH','<script id="VMC_CLOUDFLARE_UI_PATCH">'+patch+'\n</script>');
+index=upsert(index,'VMC_UI_FIXES_V2',fixesV2Tag);dashboard=upsert(dashboard,'VMC_UI_FIXES_V2',fixesV2Tag);
+index=upsert(index,'VMC_SECURITY_CONTROLS',securityTag);dashboard=upsert(dashboard,'VMC_SECURITY_CONTROLS',securityTag);
+index=upsert(index,'VMC_OWNER_INCOME',incomeTag);dashboard=upsert(dashboard,'VMC_OWNER_INCOME',incomeTag);
+index=upsert(index,'VMC_UNIT01_LANGUAGE',languageTag);dashboard=upsert(dashboard,'VMC_UNIT01_LANGUAGE',languageTag);
+index=upsert(index,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag);dashboard=upsert(dashboard,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag);
+index=upsert(index,'VMC_FINAL_HARDENING',hardeningTag);dashboard=upsert(dashboard,'VMC_FINAL_HARDENING',hardeningTag);
 
 fs.writeFileSync('index.html',index);fs.writeFileSync('app.js',app);fs.writeFileSync('dashboard.html',dashboard);
-console.log('VMC Cloudflare build completed.');
+console.log('VMC Cloudflare build completed with deterministic patch replacement.');

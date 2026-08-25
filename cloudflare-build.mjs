@@ -7,12 +7,14 @@ const income=fs.readFileSync('income-dashboard.js','utf8');
 const language=fs.readFileSync('unit01-language.js','utf8');
 const registrationAlignment=fs.readFileSync('cloudflare-registration-alignment.js','utf8');
 const hardening=fs.readFileSync('cloudflare-final-hardening.js','utf8');
+const customerExperience=fs.readFileSync('customer-experience.js','utf8');
 const fixesV2Tag='<script id="VMC_UI_FIXES_V2">\n'+fixesV2+'\n</script>';
 const securityTag='<script id="VMC_SECURITY_CONTROLS">\n'+security+'\n</script>';
 const incomeTag='<script id="VMC_OWNER_INCOME">\n'+income+'\n</script>';
 const languageTag='<script id="VMC_UNIT01_LANGUAGE">\n'+language+'\n</script>';
 const registrationAlignmentTag='<script id="VMC_REGISTRATION_ALIGNMENT">\n'+registrationAlignment+'\n</script>';
 const hardeningTag='<script id="VMC_FINAL_HARDENING">\n'+hardening+'\n</script>';
+const customerExperienceTag='<script id="VMC_CUSTOMER_EXPERIENCE">\n'+customerExperience+'\n</script>';
 
 let index=fs.readFileSync('index.html','utf8');
 let app=fs.readFileSync('app.js','utf8');
@@ -73,6 +75,7 @@ index=upsert(index,'VMC_OWNER_INCOME',incomeTag);dashboard=upsert(dashboard,'VMC
 index=upsert(index,'VMC_UNIT01_LANGUAGE',languageTag);dashboard=upsert(dashboard,'VMC_UNIT01_LANGUAGE',languageTag);
 index=upsert(index,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag);dashboard=upsert(dashboard,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag);
 index=upsert(index,'VMC_FINAL_HARDENING',hardeningTag);dashboard=upsert(dashboard,'VMC_FINAL_HARDENING',hardeningTag);
+index=upsert(index,'VMC_CUSTOMER_EXPERIENCE',customerExperienceTag);
 
 fs.writeFileSync('index.html',index);fs.writeFileSync('app.js',app);fs.writeFileSync('dashboard.html',dashboard);
 console.log('VMC Cloudflare build completed with deterministic patch replacement.');

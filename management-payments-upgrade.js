@@ -41,16 +41,28 @@ const boot=()=>{
     toolbar.addEventListener('click',e=>{const b=e.target.closest('.payments-filter');if(!b)return;toolbar.querySelectorAll('.payments-filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');applyFilter(b.dataset.paymentFilter)});
   }
   const rows=()=>[...document.querySelectorAll('#approvalRows tr')];
+  const isPendingRow=row=>{
+    const text=row.textContent.trim().toLowerCase();
+    if(!text||/no pending approvals|no pending payments|approval queue is clear/.test(text))return false;
+    return !!(row.querySelector('.rowactions')||row.querySelector('button'));
+  };
+  const pendingRows=()=>rows().filter(isPendingRow);
   const applyFilter=(filter)=>{
     rows().forEach(row=>{
+      if(!isPendingRow(row))return;
       const text=row.textContent.toLowerCase();
       const match=filter==='all'||(filter==='registration'&&text.includes('registration'))||(filter==='renewal'&&text.includes('renewal'));
       row.style.display=match?'':'none';
     });
   };
   const refresh=()=>{
-    const rs=rows();
-    const visible=rs.filter(r=>getComputedStyle(r).display!=='none');
+    const rs=pendingRows();
+    const activeFilter=section.querySelector('.payments-filter.active')?.dataset.paymentFilter||'all';
+    const visible=rs.filter(r=>{
+      if(activeFilter==='all')return true;
+      const text=r.textContent.toLowerCase();
+      return activeFilter==='registration'?text.includes('registration'):text.includes('renewal');
+    });
     const count=document.getElementById('paymentsPendingCount');if(count)count.textContent=visible.length;
     const wrap=document.querySelector('#approvals .tablewrap');
     if(!wrap)return;
@@ -60,7 +72,7 @@ const boot=()=>{
       if(!clear){clear=document.createElement('div');clear.className='payments-clear';wrap.appendChild(clear)}
       clear.innerHTML='<div><strong>No payments waiting for review</strong>The approval queue is clear right now.</div>';
     }else if(clear)clear.remove();
-    applyFilter(section.querySelector('.payments-filter.active')?.dataset.paymentFilter||'all');
+    applyFilter(activeFilter);
   };
   const root=document.getElementById('approvalRows');
   if(root)new MutationObserver(()=>setTimeout(refresh,0)).observe(root,{childList:true,subtree:true});

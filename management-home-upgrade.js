@@ -18,7 +18,13 @@ const boot=()=>{
  const cards=section.querySelector('.cards');
  if(cards){
   const keep=['sMembers','sPayments','sExpiring'];
-  [...cards.children].forEach(card=>{const value=card.querySelector('strong');if(value&&!keep.includes(value.id))card.remove()});
+  // Do not remove native dashboard stat nodes: renderOverview() still writes to
+  // all of their IDs asynchronously after authentication. Hiding them preserves
+  // those DOM targets and prevents null.textContent crashes caused by a race.
+  [...cards.children].forEach(card=>{
+   const value=card.querySelector('strong');
+   if(value&&!keep.includes(value.id))card.classList.add('vmc-home-hidden');
+  });
   const labels=[['sMembers','Customers'],['sPayments','Payments waiting'],['sExpiring','Expiring soon']];
   labels.forEach(([id,label])=>{const v=document.getElementById(id);if(v){const span=v.parentElement.querySelector('span');if(span)span.textContent=label}});
   const income=document.createElement('div');income.className='stat';income.innerHTML='<span>VMC Status</span><strong style="font-size:1rem">READY</strong>';cards.appendChild(income);
@@ -28,7 +34,7 @@ const boot=()=>{
   const head=attention.closest('.panel')?.querySelector('.head');
   if(head){const b=head.querySelector('b');if(b)b.textContent='Needs Attention';head.querySelector('[data-sec-link="approvals"]')?.remove()}
  }
- const style=document.createElement('style');style.textContent=`#overview .title{padding:16px 18px;border:1px solid #292d34;border-radius:14px;background:linear-gradient(135deg,#15171c,#0e1013);margin-bottom:12px}#overview .title h2{text-transform:none;font-size:1.5rem;letter-spacing:-.04em}#overview .title p{font-size:.74rem}#overview .cards{grid-template-columns:repeat(4,minmax(0,1fr));width:100%}#overview .stat{width:100%;height:104px}#overview .panel{margin-top:2px}@media(max-width:700px){#overview .title{padding:14px}#overview .title h2{font-size:1.2rem}#overview .cards{grid-template-columns:repeat(2,minmax(0,1fr))}#overview .stat{height:94px}}`;
+ const style=document.createElement('style');style.textContent=`.vmc-home-hidden{display:none!important}#overview .title{padding:16px 18px;border:1px solid #292d34;border-radius:14px;background:linear-gradient(135deg,#15171c,#0e1013);margin-bottom:12px}#overview .title h2{text-transform:none;font-size:1.5rem;letter-spacing:-.04em}#overview .title p{font-size:.74rem}#overview .cards{grid-template-columns:repeat(4,minmax(0,1fr));width:100%}#overview .stat{width:100%;height:104px}#overview .panel{margin-top:2px}@media(max-width:700px){#overview .title{padding:14px}#overview .title h2{font-size:1.2rem}#overview .cards{grid-template-columns:repeat(2,minmax(0,1fr))}#overview .stat{height:94px}}`;
  document.head.appendChild(style);
 };
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,0),{once:true});else setTimeout(boot,0);

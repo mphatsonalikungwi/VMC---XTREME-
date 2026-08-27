@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://vmcxtreme.github.io/sitemap.xml
+Sitemap: https://vmcxtreme.pages.dev/sitemap.xml

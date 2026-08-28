@@ -6,8 +6,10 @@ const start=()=>{
  window.__vmcWelcomeHomeInstalled=true;
  const style=document.createElement('style');
  style.textContent=`
+#back{display:none!important}
 #overview>.title{display:none!important}
 #overview>.vmc-overview-hero,#overview>.vmc-command{display:none!important}
+#overview>#addCustomerBtn,#overview .actions{display:none!important}
 .vmc-welcome-home{display:grid;gap:14px}
 .vmc-welcome-hero{position:relative;overflow:hidden;padding:28px 26px 25px;border:1px solid #3a2027;border-radius:18px;background:radial-gradient(circle at 92% 8%,rgba(227,27,45,.19),transparent 34%),linear-gradient(135deg,#181116 0%,#111318 57%,#0c0f12 100%);box-shadow:0 16px 42px rgba(0,0,0,.24)}
 .vmc-welcome-hero:before{content:'VMC';position:absolute;right:-15px;bottom:-46px;font-size:10rem;font-weight:1000;letter-spacing:-.1em;color:rgba(255,255,255,.022);pointer-events:none}
@@ -47,53 +49,26 @@ const start=()=>{
  });
  panel.classList.add('vmc-home-attention');
  let home=overview.querySelector(':scope>.vmc-welcome-home');
- if(!home){
-  home=document.createElement('div');
-  home.className='vmc-welcome-home';
-  overview.insertBefore(home,cards);
- }
- const who=document.getElementById('who')?.textContent?.trim();
- const first=who&&who!=='Loading…'?who.split(/\s+/)[0]:'';
- const greeting=first?`It is great to have you here, ${first}.`:'Welcome to your VMC workspace.';
- home.innerHTML='<div class="vmc-welcome-hero"><div class="vmc-welcome-kicker">VMC Xtreme <span class="vmc-home-badge"><i></i> Dashboard</span></div><h2>'+greeting+'</h2><div class="vmc-welcome-line"></div><p>This is your central VMC workspace — designed to give you a clear view of the business and make everyday management simple, organised and professional.</p><div class="vmc-welcome-note">Use the navigation menu to move between customers, approvals, financial information, reports, team management and your account.</div></div>';
- home.appendChild(cards);
- home.appendChild(panel);
+ if(!home){home=document.createElement('div');home.className='vmc-welcome-home';overview.insertBefore(home,cards)}
+ const renderGreeting=()=>{
+  const who=document.getElementById('who')?.textContent?.trim()||'';
+  const first=who&&who!=='Loading…'&&who!=='Loading...' ? who.split(/\s+/)[0] : '';
+  const greeting=first?`Good to have you with us, ${first}.`:'Welcome to your VMC workspace.';
+  home.querySelector('.vmc-welcome-hero')?.querySelector('h2')?.replaceChildren(document.createTextNode(greeting));
+ };
+ home.innerHTML='<div class="vmc-welcome-hero"><div class="vmc-welcome-kicker">VMC Xtreme <span class="vmc-home-badge"><i></i> Dashboard</span></div><h2>Welcome to your VMC workspace.</h2><div class="vmc-welcome-line"></div><p>This is your central VMC workspace — designed to give you a clear view of the business and make everyday management simple, organised and professional.</p><div class="vmc-welcome-note">Use the navigation menu to move between customers, approvals, financial information, reports, team management and your account.</div></div>';
+ home.appendChild(cards);home.appendChild(panel);renderGreeting();
+ const whoEl=document.getElementById('who');
+ if(whoEl){const whoObs=new MutationObserver(renderGreeting);whoObs.observe(whoEl,{childList:true,characterData:true,subtree:true})}
  const polishCustomerForm=()=>{
-  const form=document.getElementById('vmcDashboardCustomerForm');
-  if(!form)return;
-  const replacements=[
-   ['username','VMC Username','Username'],
-   ['password','Initial Password','Password'],
-   ['membership_tier','Membership','Membership Plan'],
-   ['session_type','Session Type','Training Option'],
-   ['payment_channel','Payment Channel','Payment Method'],
-   ['payment_reference','Payment Reference','Payment Reference'],
-   ['date_of_birth','Date of Birth','Date of Birth'],
-   ['gender','Gender','Gender'],
-   ['emergency_contact','Emergency Contact','Emergency Contact'],
-   ['email','Email','Email']
-  ];
-  form.querySelectorAll('.field').forEach(field=>{
-   const input=field.querySelector('input,select,textarea');
-   if(!input)return;
-   const row=replacements.find(x=>x[0]===input.name);
-   const label=field.querySelector('label');
-   if(row&&label){
-    const optional=label.querySelector('.vmc-optional');
-    label.textContent=row[2];
-    if(optional)label.appendChild(optional);
-    if(input.required&&!label.textContent.includes('*'))label.appendChild(document.createTextNode(' *'));
-   }
-  });
-  const note=form.querySelector('.notice');
-  if(note)note.textContent='Enter the customer’s details below. Any additional profile information can be completed later.';
+  const form=document.getElementById('vmcDashboardCustomerForm');if(!form)return;
+  const replacements=[['username','VMC Username','Username'],['password','Initial Password','Password'],['membership_tier','Membership','Membership Plan'],['session_type','Session Type','Training Option'],['payment_channel','Payment Channel','Payment Method'],['payment_reference','Payment Reference','Payment Reference'],['date_of_birth','Date of Birth','Date of Birth'],['gender','Gender','Gender'],['emergency_contact','Emergency Contact','Emergency Contact'],['email','Email','Email']];
+  form.querySelectorAll('.field').forEach(field=>{const input=field.querySelector('input,select,textarea');if(!input)return;const row=replacements.find(x=>x[0]===input.name);const label=field.querySelector('label');if(row&&label){const required=input.required;label.textContent=row[2]+(required?' *':'')}});
+  const note=form.querySelector('.notice');if(note)note.textContent='Enter the customer’s details below. Any additional profile information can be completed later.';
  };
  polishCustomerForm();
  const modalBody=document.getElementById('modalBody');
- if(modalBody){
-  const obs=new MutationObserver(()=>polishCustomerForm());
-  obs.observe(modalBody,{childList:true,subtree:true});
- }
+ if(modalBody){const obs=new MutationObserver(polishCustomerForm);obs.observe(modalBody,{childList:true,subtree:true})}
 };
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();

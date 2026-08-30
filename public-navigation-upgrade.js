@@ -1,5 +1,6 @@
 (()=>{'use strict';
 const init=()=>{
+try{
  const nav=document.getElementById('nav');if(!nav)return;
  if(!document.getElementById('vmc-public-nav-style')){
    const style=document.createElement('style');
@@ -34,6 +35,14 @@ const init=()=>{
  if(!mobileActions){mobileActions=document.createElement('div');mobileActions.className='mobile-nav-actions';links.appendChild(mobileActions);}
  if(member&&!mobileActions.querySelector('[data-open="login"]'))mobileActions.appendChild(member.cloneNode(true));
  if(join&&join.parentElement!==navRight)navRight.appendChild(join);
+}catch(e){
+ if(!document.getElementById('vmc-nav-error')){
+  const b=document.createElement('div');b.id='vmc-nav-error';
+  b.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#ff2d2d;color:#fff;padding:10px;font-family:monospace;font-size:11px;word-break:break-all';
+  b.textContent='VMC NAV ERROR: '+(e&&e.message?e.message:e);
+  document.body.appendChild(b);
+ }
+}
 };
 const boot=()=>{init();let runs=0;const observer=new MutationObserver(()=>{if(runs++<30)init()});observer.observe(document.body,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),12000)};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();

@@ -483,4 +483,71 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup,{once:true});else setup();
   window.vmcRegistrationLayoutUpgrade=setup;
 })();
-</script></body></html>
+</script><style id="VMC_REGISTRATION_FINAL_LAYOUT_FIX">
+/* Registration modal: override the global section spacing that was creating the large gap. */
+#registerView .vmc-wizard{margin:0!important;padding:0!important}
+#registerView .vmc-page{padding:0!important;margin:0!important}
+#registerView .vmc-welcome{margin:0 0 14px!important}
+#registerView .vmc-membership-choice{margin:0 0 14px!important}
+#registerView .vmc-progress{margin:0 0 14px!important}
+#registerView .vmc-page-head{margin:0 0 12px!important}
+#registerView .vmc-fields{margin:0!important}
+#registerView .vmc-next{margin-top:14px!important}
+#registerView .selected-plan{border:1px solid #4b1b23;background:#1b1114;border-radius:13px;padding:13px}
+#registerView .selected-plan small{display:block;color:#ff6977;text-transform:uppercase;font-size:.63rem;font-weight:850;letter-spacing:.06em}
+#registerView .selected-plan strong{display:block;font-size:.95rem;margin-top:2px}
+</style>
+<script id="VMC_REGISTRATION_FINAL_LAYOUT_FIX_SCRIPT">
+(()=>{
+  'use strict';
+  const fix=()=>{
+    const root=document.querySelector('#registerView');
+    const wizard=root?.querySelector('.vmc-wizard');
+    if(!root||!wizard)return;
+    const welcome=wizard.querySelector('.vmc-welcome');
+    const membership=root.querySelector('.selected-plan');
+    const progress=wizard.querySelector('.vmc-progress');
+
+    if(welcome){
+      const small=welcome.querySelector('small');
+      if(small)small.textContent="Welcome to VMC Xtreme Fitness. We’re glad you’re here. Tell us a few details and we’ll get your membership ready.";
+    }
+
+    if(membership){
+      const label=membership.querySelector('small');
+      const text=membership.querySelector('strong');
+      if(label)label.textContent='Choose your membership';
+      if(text&&!text.textContent.trim())text.textContent='Select the membership that suits you best.';
+      membership.classList.add('vmc-membership-choice');
+      if(membership.parentElement!==wizard){
+        if(welcome)welcome.insertAdjacentElement('afterend',membership);
+        else wizard.insertBefore(membership,wizard.firstChild);
+      }else if(welcome&&membership.previousElementSibling!==welcome){
+        welcome.insertAdjacentElement('afterend',membership);
+      }
+    }
+
+    if(progress&&membership&&progress.previousElementSibling!==membership){
+      membership.insertAdjacentElement('afterend',progress);
+    }
+
+    const details=wizard.querySelector('.vmc-page-head b');
+    if(details&&/membership essentials/i.test(details.textContent||''))details.textContent='Membership details';
+  };
+  const boot=()=>{
+    fix();
+    let attempts=0;
+    const timer=setInterval(()=>{
+      fix();
+      if(++attempts>=40)clearInterval(timer);
+    },250);
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+  document.addEventListener('click',e=>{
+    const el=e.target.closest('button,a');
+    if(el&&/create.*account|join|register/i.test(el.textContent||''))setTimeout(fix,60);
+  },true);
+})();
+</script>
+</body></html>

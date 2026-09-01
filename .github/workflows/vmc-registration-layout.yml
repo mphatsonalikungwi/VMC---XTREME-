@@ -1,13 +1,50 @@
-name: VMC Registration Layout Upgrade
+name: VMC Registration Authorized Repair
 on:
   push:
     branches: [main]
 permissions:
   contents: write
 jobs:
-  upgrade-registration-layout:
+  repair:
     if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo 'Disabled: no automatic registration redesigns are authorized.'
+      - name: Apply only authorized registration repairs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          replacements = [
+            ("['fullName','registerUsername','phoneNumber','registerPassword','tier','session','durationCount','durationUnit','paymentChannel']", "['fullName','phoneNumber','registerPassword','tier','session','durationCount','durationUnit','paymentChannel']"),
+            ("if(!usernameOk($('#registerUsername').value))return errorBox('Choose a valid VMC Username using lowercase letters, numbers, dot, underscore or hyphen.');", ""),
+            ("const file=$('#profilePicture')?.files?.[0]||null;", ""),
+            ("if(!d.full_name||!usernameOk(d.username)||!phoneOk(d.phone_number)||!d.password||!d.membership_tier||!d.session_type||count<1||!d.payment_channel||!$('#rulesCheck').checked)", "if(!d.full_name||!phoneOk(d.phone_number)||!d.password||!d.membership_tier||!d.session_type||count<1||!d.payment_channel||!d.emergency_contact?.trim()||!$('#rulesCheck').checked)"),
+          ]
+          for a,b in replacements: s=s.replace(a,b)
+          import re
+          s=re.sub(r"\$\('#profilePicture'\)\.onchange=.*?readAsDataURL\(file\)\}\);", "", s, count=1, flags=re.S)
+          # Add the requested optional payment reference to the existing previous two-step design.
+          needle='<div class="field"><label for="paymentChannel">Payment Method</label><select id="paymentChannel" name="payment_channel" required>'
+          if 'id="paymentReference"' not in s and needle in s:
+              end='</select></div>'
+              pos=s.find(end, s.find(needle)) + len(end)
+              field='<div class="field"><label for="paymentReference">Payment Reference <span class="vmc-email-optional">(Optional)</span></label><input id="paymentReference" name="receipt_reference" autocomplete="off" placeholder="Optional"></div>'
+              s=s[:pos]+field+s[pos:]
+          # Remove any remaining registration-side avatar helpers from the final registration layer.
+          s=re.sub(r"async function uploadAvatar\(sb,file,userId\)\{.*?\}\n", "", s, count=1, flags=re.S)
+          p.write_text(s)
+
+          p=Path('app.js')
+          s=p.read_text()
+          s=s.replace("if(!d.receipt_reference?.trim())return'Please enter the payment receipt/reference number.';", "")
+          p.write_text(s)
+          PY
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html app.js
+          git commit -m 'Fix registration handler and authorized optional payment reference' || true
+          git push

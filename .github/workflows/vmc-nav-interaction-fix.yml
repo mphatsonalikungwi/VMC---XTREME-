@@ -15,14 +15,13 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import re
-
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
           for sid in ['VMC_CLOUDFLARE_UI_PATCH','VMC_UI_FIXES_V2','VMC_REGISTRATION_ALIGNMENT','VMC_FINAL_HARDENING','VMC_CUSTOMER_EXPERIENCE','VMC_AUTH_IDENTIFIER','VMC_PRODUCTION_CUSTOMER_FIXES','VMC_REGISTRATION_LAYOUT_UPGRADE_SCRIPT','VMC_REGISTRATION_FINAL_LAYOUT_FIX_SCRIPT']:
-              s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>\\s*','',s,flags=re.S)
+              s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>\s*','',s,flags=re.S)
           for sid in ['VMC_REGISTRATION_LAYOUT_UPGRADE','VMC_REGISTRATION_FINAL_LAYOUT_FIX']:
-              s=re.sub(r'<style id="'+re.escape(sid)+r'">.*?</style>\\s*','',s,flags=re.S)
-          s=re.sub(r'async function uploadAvatar\\(sb,file,userId\\)\\{.*?\\}\\n','',s,count=1,flags=re.S)
+              s=re.sub(r'<style id="'+re.escape(sid)+r'">.*?</style>\s*','',s,flags=re.S)
+          s=re.sub(r'async function uploadAvatar\(sb,file,userId\)\{.*?\}\n','',s,count=1,flags=re.S)
           p.write_text(s,encoding='utf-8')
 
           p=Path('app.js')

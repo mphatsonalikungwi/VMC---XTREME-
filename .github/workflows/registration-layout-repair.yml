@@ -1,0 +1,61 @@
+name: VMC registration layout repair
+on:
+  push:
+    paths:
+      - '.github/workflows/registration-layout-repair.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore previous registration design and apply authorized field changes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path('index.html')
+          s=p.read_text()
+          # Remove the newer competing registration wizard that was replacing the previous design.
+          start=s.find('<script id="VMC_REGISTRATION_WIZARD">')
+          if start!=-1:
+              end=s.find('</script>',start)
+              if end!=-1: s=s[:start]+s[end+9:]
+          # Remove registration-side avatar bridge only; Member Portal avatar code is untouched.
+          for sid in ('VMC_AVATAR_BRIDGE',):
+              start=s.find(f'<script id="{sid}">')
+              if start!=-1:
+                  end=s.find('</script>',start)
+                  if end!=-1: s=s[:start]+s[end+9:]
+          # Previous design: make Emergency Contact required.
+          s=s.replace('name="emergency_contact" placeholder="Name and phone number">','name="emergency_contact" placeholder="Name and phone number" required>')
+          s=s.replace('Emergency Contact <span>(Optional)</span>','Emergency Contact')
+          # Remove profile picture from registration markup and its client-side handler.
+          photo='<div class="field full"><div class="vmc-photo"><div class="vmc-photo-preview" id="vmcPhotoPreview">V</div><div><label for="profilePicture">📷 Add Profile Picture <span>(Optional)</span></label><input id="profilePicture" name="profile_picture" type="file" accept="image/jpeg,image/png,image/webp"><p class="vmc-optional">JPG, PNG or WebP · maximum 2 MB</p></div></div></div>'
+          s=s.replace(photo,'')
+          # Remove username from the registration UI and validation in the previous design.
+          username_markup=re.escape('<div class="field"><label for="registerUsername">VMC Username</label><input id="registerUsername" name="username" required minlength="3" maxlength="32" pattern="[a-z0-9][a-z0-9._-]{2,31}" autocomplete="username" placeholder="Choose your VMC username"></div>')
+          s=re.sub(username_markup,'',s)
+          s=s.replace("'registerUsername',",'')
+          s=s.replace("if(!usernameOk($('#registerUsername').value))return errorBox('Choose a valid VMC Username using lowercase letters, numbers, dot, underscore or hyphen.');",'')
+          s=s.replace("!usernameOk(d.username)||",'')
+          s=s.replace("username:String(d.username).trim().toLowerCase(),",'')
+          # Registration-side profile picture code.
+          s=re.sub(r"const file=\$\('#profilePicture'\)\?\.files\?\.\[0\]\|\|null;",'',s)
+          s=re.sub(r"if\(file&&\(file\.size>2\*1024\*1024\|\|!\['image/jpeg','image/png','image/webp'\]\.includes\(file\.type\)\)\)return errorBox\('[^']*Profile picture[^']*'\);",'',s)
+          s=s.replace("$('#profilePicture').onchange=e=>{const file=e.target.files?.[0],p=$('#vmcPhotoPreview');if(!file)return;if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>2*1024*1024){e.target.value='';return errorBox('Choose a JPG, PNG or WebP image no larger than 2 MB.')}const reader=new FileReader();reader.onload=()=>{p.innerHTML=`<img src=\"${reader.result}\" alt=\"Profile preview\">`};reader.readAsDataURL(file)};",'')
+          p.write_text(s)
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet || git commit -m 'Restore previous VMC registration form design'
+          git push
+      - name: Remove temporary workflow
+        if: always()
+        run: |
+          git rm -f .github/workflows/registration-layout-repair.yml || true
+          git commit -m 'Remove temporary registration repair workflow' || true
+          git push || true

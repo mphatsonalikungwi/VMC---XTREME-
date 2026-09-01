@@ -1,0 +1,65 @@
+name: VMC Navigation Interaction Fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix-navigation:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch navigation interaction and remove debug banner
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.js')
+          s = p.read_text(encoding='utf-8')
+          marker = '/* VMC NAV INTERACTION HARDENING */'
+          if marker not in s:
+              patch = r'''/* VMC NAV INTERACTION HARDENING */
+          (()=>{
+            const boot=()=>{
+              const removeDebug=()=>{
+                document.querySelectorAll('body *').forEach(el=>{
+                  if(el.children.length===0 && /VMC DEBUG:\s*JavaScript is running on this page/i.test((el.textContent||'').trim())){
+                    el.remove();
+                  }
+                });
+              };
+              removeDebug();
+              new MutationObserver(removeDebug).observe(document.body,{childList:true,subtree:true});
+              const nav=document.getElementById('nav');
+              if(!nav)return;
+              document.addEventListener('click',e=>{
+                const menu=e.target.closest('#menuToggle,.menu-toggle');
+                if(!menu)return;
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                const open=!nav.classList.contains('mobile-open');
+                nav.classList.toggle('mobile-open',open);
+                menu.setAttribute('aria-expanded',String(open));
+                menu.setAttribute('aria-label',open?'Close navigation':'Open navigation');
+                menu.textContent=open?'×':'☰';
+              },true);
+            };
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+            else boot();
+          })();
+          '''
+              pos=s.rfind('})();')
+              if pos<0: raise SystemExit('app.js closing marker not found')
+              s=s[:pos]+patch+'\n'+s[pos:]
+              p.write_text(s,encoding='utf-8')
+          else:
+              print('Navigation hardening already present')
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix mobile navigation interaction"
+          git push

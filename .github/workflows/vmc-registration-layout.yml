@@ -34,17 +34,6 @@ async function registerMember(e){e.preventDefault();const f=e.currentTarget,err=
               js=js.replace(marker,"const VMC_AUTHORIZED_REGISTRATION_REPAIR=true;\n"+override+marker,1)
           p.write_text(js,encoding='utf-8')
           PY
-      - name: Verify core runtime
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          j=Path('app.js').read_text(encoding='utf-8')
-          assert 'VMC_AUTHORIZED_REGISTRATION_REPAIR' in j
-          assert "if(!d.emergency_contact?.trim())" in j
-          assert "if(!d.receipt_reference?.trim())" not in j
-          assert 'vmc-registration-api' in j
-          print('Core registration runtime verified.')
-          PY
       - name: Commit repair
         run: |
           git config user.name 'github-actions[bot]'

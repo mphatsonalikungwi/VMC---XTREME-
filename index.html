@@ -400,5 +400,5 @@ try{
 const boot=()=>{init();let runs=0;const observer=new MutationObserver(()=>{if(runs++<30)init()});observer.observe(document.body,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),12000)};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();</script>
-<script id="VMC_DEBUG_CANARY">document.body.insertAdjacentHTML('afterbegin','<div id="vmc-debug-canary" style="position:fixed;top:0;left:0;right:0;z-index:999999;background:#ffe600;color:#000;padding:12px;text-align:center;font-weight:900;font-family:sans-serif;font-size:14px">VMC DEBUG: JavaScript is running on this page</div>');</script>
+
 </body></html>

@@ -10,38 +10,87 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Remove debug banner and preserve navigation fix
+      - name: Apply navigation and registration presentation fixes
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
 
-          debug = '<script id="VMC_DEBUG_CANARY">document.body.insertAdjacentHTML(\'afterbegin\',\'<div id="vmc-debug-canary" style="position:fixed;top:0;left:0;right:0;z-index:999999;background:#ffe600;color:#000;padding:12px;text-align:center;font-weight:900;font-family:sans-serif;font-size:14px">VMC DEBUG: JavaScript is running on this page</div>\');</script>'
-          if debug in s:
-              s = s.replace(debug, '')
+          debug = '<script id="VMC_DEBUG_CANARY">document.body.insertAdjacentHTML(\'afterbegin\',\'<div id="vmc-debug-canary" style="position:fixed;top:0;left:0;right:0;z-index:999999;background:#ffe600;color:#000;padding:12px;text-align:center;font-weight:900;font-family:sans-serif;font-size:14px\">VMC DEBUG: JavaScript is running on this page</div>\');</script>'
+          s = s.replace(debug, '')
 
-          marker = '<style id="VMC_NAVIGATION_RESPONSIVE_FIX">'
-          if marker not in s:
-              css = r'''<style id="VMC_NAVIGATION_RESPONSIVE_FIX">
-          /* VMC navigation: responsive independently of browser zoom/desktop-site viewport. */
-          @media (max-width:1200px){
-            .site-header{z-index:80}
-            .nav{position:relative}
-            .menu-toggle{display:block!important;position:relative;z-index:90;pointer-events:auto;touch-action:manipulation}
-            .nav-links{display:none!important}
-            .nav.mobile-open .nav-links{display:flex!important;position:absolute;left:0;right:0;top:100%;z-index:85;background:#0d0f12;border-bottom:1px solid var(--line);padding:10px 18px 18px;flex-direction:column;align-items:stretch;gap:0;box-shadow:0 18px 30px rgba(0,0,0,.28)}
-            .nav.mobile-open .nav-links a{display:block;padding:13px 0;border-bottom:1px solid #202329;font-size:.82rem}
-            .nav.mobile-open .nav-links .vmc-nav-auth{display:flex!important;width:100%;flex-direction:column;align-items:stretch;margin:12px 0 0;padding:12px 0 0;border-left:0;border-top:1px solid #202329;gap:8px}
-            .nav.mobile-open .nav-links .vmc-nav-auth button{width:100%;border-radius:10px;padding:12px;pointer-events:auto;touch-action:manipulation}
-          }
-          @media (min-width:1201px){
-            .menu-toggle{display:none!important}
-          }
-          </style>'''
-              if '</style>' not in s:
-                  raise SystemExit('No closing style tag found')
-              s = s.replace('</style>', '</style>' + css, 1)
+          if 'id="VMC_REGISTRATION_FINAL_LAYOUT_FIX"' not in s:
+              patch = r'''<style id="VMC_REGISTRATION_FINAL_LAYOUT_FIX">
+          /* Registration modal: override the global section spacing that was creating the large gap. */
+          #registerView .vmc-wizard{margin:0!important;padding:0!important}
+          #registerView .vmc-page{padding:0!important;margin:0!important}
+          #registerView .vmc-welcome{margin:0 0 14px!important}
+          #registerView .vmc-membership-choice{margin:0 0 14px!important}
+          #registerView .vmc-progress{margin:0 0 14px!important}
+          #registerView .vmc-page-head{margin:0 0 12px!important}
+          #registerView .vmc-fields{margin:0!important}
+          #registerView .vmc-next{margin-top:14px!important}
+          #registerView .selected-plan{border:1px solid #4b1b23;background:#1b1114;border-radius:13px;padding:13px}
+          #registerView .selected-plan small{display:block;color:#ff6977;text-transform:uppercase;font-size:.63rem;font-weight:850;letter-spacing:.06em}
+          #registerView .selected-plan strong{display:block;font-size:.95rem;margin-top:2px}
+          </style>
+          <script id="VMC_REGISTRATION_FINAL_LAYOUT_FIX_SCRIPT">
+          (()=>{
+            'use strict';
+            const fix=()=>{
+              const root=document.querySelector('#registerView');
+              const wizard=root?.querySelector('.vmc-wizard');
+              if(!root||!wizard)return;
+              const welcome=wizard.querySelector('.vmc-welcome');
+              const membership=root.querySelector('.selected-plan');
+              const progress=wizard.querySelector('.vmc-progress');
+
+              if(welcome){
+                const small=welcome.querySelector('small');
+                if(small)small.textContent="Welcome to VMC Xtreme Fitness. We’re glad you’re here. Tell us a few details and we’ll get your membership ready.";
+              }
+
+              if(membership){
+                const label=membership.querySelector('small');
+                const text=membership.querySelector('strong');
+                if(label)label.textContent='Choose your membership';
+                if(text&&!text.textContent.trim())text.textContent='Select the membership that suits you best.';
+                membership.classList.add('vmc-membership-choice');
+                if(membership.parentElement!==wizard){
+                  if(welcome)welcome.insertAdjacentElement('afterend',membership);
+                  else wizard.insertBefore(membership,wizard.firstChild);
+                }else if(welcome&&membership.previousElementSibling!==welcome){
+                  welcome.insertAdjacentElement('afterend',membership);
+                }
+              }
+
+              if(progress&&membership&&progress.previousElementSibling!==membership){
+                membership.insertAdjacentElement('afterend',progress);
+              }
+
+              const details=wizard.querySelector('.vmc-page-head b');
+              if(details&&/membership essentials/i.test(details.textContent||''))details.textContent='Membership details';
+            };
+            const boot=()=>{
+              fix();
+              let attempts=0;
+              const timer=setInterval(()=>{
+                fix();
+                if(++attempts>=40)clearInterval(timer);
+              },250);
+            };
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+            else boot();
+            document.addEventListener('click',e=>{
+              const el=e.target.closest('button,a');
+              if(el&&/create.*account|join|register/i.test(el.textContent||''))setTimeout(fix,60);
+            },true);
+          })();
+          </script>'''
+              if '</body>' not in s:
+                  raise SystemExit('No closing body tag found')
+              s = s.replace('</body>', patch + '\n</body>', 1)
 
           p.write_text(s, encoding='utf-8')
           PY
@@ -51,5 +100,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           git diff --cached --quiet && exit 0
-          git commit -m "Remove VMC debug banner"
+          git commit -m "Fix VMC registration layout hierarchy"
           git push

@@ -1,0 +1,50 @@
+name: VMC Navigation Fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix-navigation:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch navigation responsiveness
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '<style id="VMC_NAVIGATION_RESPONSIVE_FIX">'
+          if marker in s:
+              raise SystemExit('Navigation fix already present')
+          css = r'''<style id="VMC_NAVIGATION_RESPONSIVE_FIX">
+          /* VMC navigation: responsive independently of browser zoom/desktop-site viewport. */
+          @media (max-width:1200px){
+            .site-header{z-index:80}
+            .nav{position:relative}
+            .menu-toggle{display:block!important;position:relative;z-index:90;pointer-events:auto;touch-action:manipulation}
+            .nav-links{display:none!important}
+            .nav.mobile-open .nav-links{display:flex!important;position:absolute;left:0;right:0;top:100%;z-index:85;background:#0d0f12;border-bottom:1px solid var(--line);padding:10px 18px 18px;flex-direction:column;align-items:stretch;gap:0;box-shadow:0 18px 30px rgba(0,0,0,.28)}
+            .nav.mobile-open .nav-links a{display:block;padding:13px 0;border-bottom:1px solid #202329;font-size:.82rem}
+            .nav.mobile-open .nav-links .vmc-nav-auth{display:flex!important;width:100%;flex-direction:column;align-items:stretch;margin:12px 0 0;padding:12px 0 0;border-left:0;border-top:1px solid #202329;gap:8px}
+            .nav.mobile-open .nav-links .vmc-nav-auth button{width:100%;border-radius:10px;padding:12px;pointer-events:auto;touch-action:manipulation}
+          }
+          @media (min-width:1201px){
+            .menu-toggle{display:none!important}
+          }
+          </style>'''
+          if '</style>' not in s:
+              raise SystemExit('No closing style tag found')
+          s = s.replace('</style>', '</style>' + css, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit navigation fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix responsive navigation interaction"
+          git push

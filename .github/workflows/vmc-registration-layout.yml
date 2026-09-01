@@ -1,0 +1,102 @@
+name: VMC Registration Layout Upgrade
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  upgrade-registration-layout:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upgrade registration layout
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = 'id="VMC_REGISTRATION_LAYOUT_UPGRADE"'
+          if marker in s:
+              raise SystemExit('Registration layout upgrade already present')
+
+          css = r'''<style id="VMC_REGISTRATION_LAYOUT_UPGRADE">
+          /* Customer registration hierarchy: welcome -> membership -> section guide -> details. */
+          #registerView .vmc-registration-welcome{margin:0 0 16px;padding:0}
+          #registerView .vmc-registration-welcome h3{margin:0 0 6px;font-size:clamp(1.5rem,4vw,2rem);line-height:1.05;letter-spacing:-.03em}
+          #registerView .vmc-registration-welcome p{margin:0;color:#a4a8b0;max-width:680px}
+          #registerView .selected-plan{margin:0 0 14px}
+          #registerView .vmc-registration-steps{margin:0 0 18px!important}
+          #registerView .vmc-registration-details-title{margin:0 0 14px!important}
+          </style>'''
+          if '</style>' not in s:
+              raise SystemExit('No closing style tag found')
+          s = s.replace('</style>', '</style>' + css, 1)
+
+          script = r'''<script id="VMC_REGISTRATION_LAYOUT_UPGRADE_SCRIPT">
+          (()=>{
+            'use strict';
+            const root=()=>document.querySelector('#registerView');
+            const directChild=(r,needle)=>{
+              if(!r)return null;
+              const target=[...r.querySelectorAll('*')].find(el=>((el.textContent||'').replace(/\\s+/g,' ').trim()).includes(needle));
+              if(!target)return null;
+              let el=target;
+              while(el.parentElement&&el.parentElement!==r)el=el.parentElement;
+              return el.parentElement===r?el:null;
+            };
+            const setup=()=>{
+              const r=root(); if(!r)return;
+              const welcome=directChild(r,"Let's get you started.");
+              const membership=directChild(r,'SELECTED MEMBERSHIP');
+              const steps=directChild(r,'REQUIRED')||directChild(r,'OPTIONAL');
+              const details=directChild(r,'Membership essentials');
+              if(welcome){
+                welcome.classList.add('vmc-registration-welcome');
+                const h=[...welcome.querySelectorAll('h1,h2,h3,h4')].find(x=>/Let's get you started/i.test(x.textContent||''));
+                if(h){h.textContent="Let's get you started."}
+                const p=[...welcome.querySelectorAll('p')].find(x=>/Complete the essentials first/i.test(x.textContent||''));
+                if(p)p.textContent="Welcome to VMC Xtreme Fitness. We're glad you're here. Tell us a few details and we'll get your membership ready.";
+              }
+              if(membership){
+                membership.classList.add('vmc-registration-membership');
+                const small=[...membership.querySelectorAll('small,span,div')].find(x=>/SELECTED MEMBERSHIP/i.test((x.textContent||'').trim()));
+                if(small)small.textContent='CHOOSE YOUR MEMBERSHIP';
+                const strong=[...membership.querySelectorAll('strong,h3,h4,p')].find(x=>/Choose a plan below or continue with your details/i.test((x.textContent||'')));
+                if(strong)strong.textContent='Select the membership that suits you best.';
+              }
+              if(steps)steps.classList.add('vmc-registration-steps');
+              if(details){
+                details.classList.add('vmc-registration-details-title');
+                const h=[...details.querySelectorAll('h2,h3,h4,strong')].find(x=>/Membership essentials/i.test(x.textContent||''));
+                if(h)h.textContent='Membership details';
+              }
+
+              /* Reorder only the presentation blocks; form controls and field names remain untouched. */
+              const order=[welcome,membership,steps,details].filter(Boolean);
+              let cursor=r.firstElementChild;
+              for(const item of order){
+                if(item!==cursor)r.insertBefore(item,cursor||null);
+                cursor=item.nextElementSibling;
+              }
+            };
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup,{once:true});else setup();
+            window.vmcRegistrationLayoutUpgrade=setup;
+          })();
+          </script>'''
+          if '</body>' in s:
+              s=s.replace('</body>',script+'</body>',1)
+          else:
+              s += script
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Improve customer registration layout hierarchy"
+          git push

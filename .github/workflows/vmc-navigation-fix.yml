@@ -10,16 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch navigation responsiveness
+      - name: Remove debug banner and preserve navigation fix
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
+
+          debug = '<script id="VMC_DEBUG_CANARY">document.body.insertAdjacentHTML(\'afterbegin\',\'<div id="vmc-debug-canary" style="position:fixed;top:0;left:0;right:0;z-index:999999;background:#ffe600;color:#000;padding:12px;text-align:center;font-weight:900;font-family:sans-serif;font-size:14px">VMC DEBUG: JavaScript is running on this page</div>\');</script>'
+          if debug in s:
+              s = s.replace(debug, '')
+
           marker = '<style id="VMC_NAVIGATION_RESPONSIVE_FIX">'
-          if marker in s:
-              raise SystemExit('Navigation fix already present')
-          css = r'''<style id="VMC_NAVIGATION_RESPONSIVE_FIX">
+          if marker not in s:
+              css = r'''<style id="VMC_NAVIGATION_RESPONSIVE_FIX">
           /* VMC navigation: responsive independently of browser zoom/desktop-site viewport. */
           @media (max-width:1200px){
             .site-header{z-index:80}
@@ -35,16 +39,17 @@ jobs:
             .menu-toggle{display:none!important}
           }
           </style>'''
-          if '</style>' not in s:
-              raise SystemExit('No closing style tag found')
-          s = s.replace('</style>', '</style>' + css, 1)
+              if '</style>' not in s:
+                  raise SystemExit('No closing style tag found')
+              s = s.replace('</style>', '</style>' + css, 1)
+
           p.write_text(s, encoding='utf-8')
           PY
-      - name: Commit navigation fix
+      - name: Commit cleanup
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           git diff --cached --quiet && exit 0
-          git commit -m "Fix responsive navigation interaction"
+          git commit -m "Remove VMC debug banner"
           git push

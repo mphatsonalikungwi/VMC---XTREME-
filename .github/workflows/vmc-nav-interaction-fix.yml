@@ -10,34 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Remove later registration overrides only
+      - name: Preserve previous registration design and finish authorized data handoff
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          remove_scripts=['VMC_CLOUDFLARE_UI_PATCH','VMC_UI_FIXES_V2','VMC_FINAL_HARDENING','VMC_PRODUCTION_CUSTOMER_FIXES','VMC_REGISTRATION_FINAL_LAYOUT_FIX_SCRIPT']
-          remove_styles=['VMC_REGISTRATION_FINAL_LAYOUT_FIX']
-          for sid in remove_scripts:
-              s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>\s*','',s,flags=re.S)
-          for sid in remove_styles:
-              s=re.sub(r'<style id="'+re.escape(sid)+r'">.*?</style>\s*','',s,flags=re.S)
+          old="payment_channel:d.payment_channel,rules_accepted:true,rules_version:'VMC Rules v1.0'"
+          new="payment_channel:d.payment_channel,receipt_reference:String(d.receipt_reference||'').trim(),rules_accepted:true,rules_version:'VMC Rules v1.0'"
+          if old not in s: raise SystemExit('Registration payload anchor not found')
+          s=s.replace(old,new,1)
+          old2='${esc(d.username)}'
+          new2='${esc(data?.username||\'Generated automatically\')}'
+          if old2 not in s: raise SystemExit('Registration username display anchor not found')
+          s=s.replace(old2,new2,1)
           p.write_text(s,encoding='utf-8')
           PY
-      - name: Verify previous registration implementation remains
+      - name: Verify authorized registration data handoff
         run: |
           python3 - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
           assert 'VMC_REGISTRATION_ALIGNMENT' in s
-          assert 'vmc-registration-api' in s
-          assert 'Payment Reference <span class="vmc-email-optional">(Optional)</span>' in s
-          assert 'Emergency Contact' in s
+          assert 'receipt_reference:String(d.receipt_reference||\'\').trim()' in s
+          assert "data?.username||'Generated automatically'" in s
           assert 'name="username"' not in s[s.find('<script id="VMC_REGISTRATION_ALIGNMENT">'):s.find('</script>',s.find('<script id="VMC_REGISTRATION_ALIGNMENT">'))]
-          for x in ['VMC_CLOUDFLARE_UI_PATCH','VMC_UI_FIXES_V2','VMC_FINAL_HARDENING','VMC_PRODUCTION_CUSTOMER_FIXES','VMC_REGISTRATION_FINAL_LAYOUT_FIX_SCRIPT']:
-              assert x not in s,x
-          print('Previous registration implementation verified.')
+          print('Registration data handoff verified.')
           PY
       - name: Commit
         run: |
@@ -45,5 +43,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
           git diff --cached --quiet && exit 0
-          git commit -m 'Restore previous registration form design'
+          git commit -m 'Complete authorized registration data handoff'
           git push

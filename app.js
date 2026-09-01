@@ -39,4 +39,34 @@ function setupMap(){const c=$('#contact');if(!c)return;const f=$('iframe',c);if(
 function setupServices(){$$('[data-service]').forEach(card=>card.addEventListener('click',()=>{$$('[data-service]').forEach(o=>{if(o!==card){o.classList.remove('active');o.setAttribute('aria-expanded','false')}});card.classList.toggle('active');card.setAttribute('aria-expanded',String(card.classList.contains('active')))}))}
 document.addEventListener('DOMContentLoaded',()=>{setupNavigation();setupLoginAndRegistrationSwitches();setupContact();setupWaterAndPayments();setupGallery();setupMap();setupServices();injectPasswordToggles();$('#registerForm')?.addEventListener('submit',registerMember);$('#loginForm')?.addEventListener('submit',loginMember);$('#modalClose')?.addEventListener('click',closeModal);$('#modalWrap')?.addEventListener('click',e=>{if(e.target===$('#modalWrap'))closeModal()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()})});
 window.vmcOpenModal=openModal;window.vmcCloseModal=closeModal;window.vmcShowRegister=showRegister;
+/* VMC NAV INTERACTION HARDENING */
+(()=>{
+  const boot=()=>{
+    const removeDebug=()=>{
+      document.querySelectorAll('body *').forEach(el=>{
+        if(el.children.length===0 && /VMC DEBUG:\s*JavaScript is running on this page/i.test((el.textContent||'').trim())){
+          el.remove();
+        }
+      });
+    };
+    removeDebug();
+    new MutationObserver(removeDebug).observe(document.body,{childList:true,subtree:true});
+    const nav=document.getElementById('nav');
+    if(!nav)return;
+    document.addEventListener('click',e=>{
+      const menu=e.target.closest('#menuToggle,.menu-toggle');
+      if(!menu)return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const open=!nav.classList.contains('mobile-open');
+      nav.classList.toggle('mobile-open',open);
+      menu.setAttribute('aria-expanded',String(open));
+      menu.setAttribute('aria-label',open?'Close navigation':'Open navigation');
+      menu.textContent=open?'×':'☰';
+    },true);
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();
+
 })();

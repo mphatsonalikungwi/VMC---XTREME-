@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restore previous registration form design and keep authorized field rules
+      - name: Restore previous registration design and repair only registration runtime
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -19,35 +19,63 @@ jobs:
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
 
-          # Remove the later registration layers that override the previous form design,
-          # re-add username, or introduce registration-side photo logic.
-          s=re.sub(r'<script id="VMC_FINAL_HARDENING">.*?</script>', '', s, flags=re.S)
-          s=re.sub(r'<style id="VMC_REGISTRATION_LAYOUT_UPGRADE">.*?</style>', '', s, flags=re.S)
-          s=re.sub(r'<script id="VMC_REGISTRATION_LAYOUT_UPGRADE_SCRIPT">.*?</script>', '', s, flags=re.S)
+          # The previous design is the registration wizard implemented by app.js.
+          # Remove later registration override layers so they cannot replace/redecorate it.
+          remove_ids = [
+              'VMC_CLOUDFLARE_UI_PATCH',
+              'VMC_UI_FIXES_V2',
+              'VMC_REGISTRATION_ALIGNMENT',
+              'VMC_FINAL_HARDENING',
+              'VMC_CUSTOMER_EXPERIENCE',
+              'VMC_AUTH_IDENTIFIER',
+              'VMC_PRODUCTION_CUSTOMER_FIXES',
+              'VMC_REGISTRATION_LAYOUT_UPGRADE_SCRIPT',
+              'VMC_REGISTRATION_FINAL_LAYOUT_FIX_SCRIPT',
+          ]
+          for sid in remove_ids:
+              s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>\s*', '', s, flags=re.S)
+          for sid in ['VMC_REGISTRATION_LAYOUT_UPGRADE','VMC_REGISTRATION_FINAL_LAYOUT_FIX']:
+              s=re.sub(r'<style id="'+re.escape(sid)+r'">.*?</style>\s*', '', s, flags=re.S)
 
-          # Preserve the previous two-step form design while applying only the authorized field rules.
-          s=s.replace("['fullName','registerUsername','phoneNumber','registerPassword','tier','session','durationCount','durationUnit','paymentChannel']", "['fullName','phoneNumber','registerPassword','tier','session','durationCount','durationUnit','paymentChannel']")
-          s=s.replace("if(!usernameOk($('#registerUsername').value))return errorBox('Choose a valid VMC Username using lowercase letters, numbers, dot, underscore or hyphen.');", "")
-          s=s.replace("const file=$('#profilePicture')?.files?.[0]||null;", "")
-          s=s.replace("if(!d.full_name||!usernameOk(d.username)||!phoneOk(d.phone_number)||!d.password||!d.membership_tier||!d.session_type||count<1||!d.payment_channel||!$('#rulesCheck').checked)", "if(!d.full_name||!phoneOk(d.phone_number)||!d.password||!d.membership_tier||!d.session_type||count<1||!d.payment_channel||!d.emergency_contact?.trim()||!$('#rulesCheck').checked)")
-          s=re.sub(r"\$\('#profilePicture'\)\.onchange=.*?readAsDataURL\(file\)\}\);", "", s, count=1, flags=re.S)
-
-          # Payment reference is explicitly optional.
-          needle='<div class="field"><label for="paymentChannel">Payment Method</label><select id="paymentChannel" name="payment_channel" required>'
-          if 'id="paymentReference"' not in s and needle in s:
-              end='</select></div>'
-              pos=s.find(end, s.find(needle)) + len(end)
-              field='<div class="field"><label for="paymentReference">Payment Reference <span class="vmc-email-optional">(Optional)</span></label><input id="paymentReference" name="receipt_reference" autocomplete="off" placeholder="Optional"></div>'
-              s=s[:pos]+field+s[pos:]
-
-          # Remove any remaining registration-side avatar helper from the final registration layer.
-          s=re.sub(r"async function uploadAvatar\(sb,file,userId\)\{.*?\}\n", "", s, count=1, flags=re.S)
-          p.write_text(s,encoding='utf-8')
+          # Remove registration-side avatar code only. Member Portal photo management remains untouched.
+          s=re.sub(r'async function uploadAvatar\(sb,file,userId\)\{.*?\}\n', '', s, count=1, flags=re.S)
+          p.write_text(s, encoding='utf-8')
 
           p=Path('app.js')
           s=p.read_text(encoding='utf-8')
-          s=s.replace("if(!d.receipt_reference?.trim())return'Please enter the payment receipt/reference number.';", "")
-          p.write_text(s,encoding='utf-8')
+
+          # Payment reference is optional; emergency contact is required.
+          s=s.replace("if(!d.payment_channel)return'Please select a payment channel.';if(!$('#rulesCheck')?.checked)", "if(!d.payment_channel)return'Please select a payment channel.';if(!d.emergency_contact?.trim())return'Emergency contact is required for member safety.';if(!$('#rulesCheck')?.checked)")
+          s=s.replace("['fullName','phoneNumber','registerEmail','registerPassword','tier','session','paymentChannel','receiptReference']", "['fullName','phoneNumber','registerEmail','registerPassword','tier','session','paymentChannel']")
+          s=s.replace("if(!d.full_name||d.full_name.trim().length<2)return'Please enter your full name.';", "if(!d.full_name||d.full_name.trim().length<2)return'Please enter your full name.';")
+
+          # Replace the browser-side Supabase signUp path with the verified registration Edge Function.
+          pattern=r'async function registerMember\(e\)\{.*?\}\nasync function loginMember'
+          replacement=r'''async function registerMember(e){e.preventDefault();const f=e.currentTarget,err=$('#registerError'),submit=$('#registerSubmit'),d=Object.fromEntries(new FormData(f).entries()),ve=validateRegistration(d);setError(err,ve);if(ve)return;submit.disabled=true;submit.textContent='Creating account…';try{const tier=d.membership_tier,session=d.session_type,duration=Math.max(1,Math.min(3650,parseInt(d.duration_count,10)||1)),unit=d.duration_unit||({'Per Day':'day','Per Week':'week','Per Month':'month'}[tier]||'month'),amount=priceFor(tier,session)*duration;if(!amount)throw Error('The selected membership price could not be determined.');const payload={full_name:String(d.full_name).trim(),phone_number:String(d.phone_number).trim(),email:String(d.email||'').trim().toLowerCase(),password:d.password,date_of_birth:String(d.date_of_birth||'').trim(),gender:String(d.gender||'').trim(),emergency_contact:String(d.emergency_contact||'').trim(),membership_tier:tier,session_type:session,duration_count:duration,duration_unit:unit,payment_channel:d.payment_channel,receipt_reference:String(d.receipt_reference||'').trim(),rules_accepted:$('#rulesCheck')?.checked===true,rules_version:'VMC Rules v1.0'};const {data,error}=await supabase.functions.invoke('vmc-registration-api',{body:payload});if(error)throw error;if(data?.error)throw Error(data.error);if(data?.session?.access_token&&data?.session?.refresh_token){const r=await supabase.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});if(r.error)throw r.error}const username=String(data?.username||'');const profile={full_name:d.full_name,membership_tier:tier,session_type:session,payment_channel:d.payment_channel,receipt_reference:d.receipt_reference||'',payment_status:'Pending Payment Verification',username};renderSuccess(profile,d.email||'');f.reset();state.selectedPlan=null;if($('#selectedPlanText'))$('#selectedPlanText').textContent='Choose a plan below or continue with your details.';window.vmcSetRegistrationStep?.(1)}catch(e){console.error('VMC registration error:',e);setError(err,friendlyError(e))}finally{submit.disabled=false;submit.textContent='Complete Registration'}}
+async function loginMember'''
+          ns,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('registerMember replacement did not match exactly once')
+          s=ns
+
+          # Show the generated username in the success panel without adding a username field to registration.
+          s=s.replace("<div class=\"account-grid\"><div><small>Member</small>", "<div class=\"account-grid\"><div><small>VMC Username</small><strong>${esc(profile?.username||'Generated automatically')}</strong></div><div><small>Member</small>", 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Verify registration invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('index.html').read_text(encoding='utf-8')
+          js=Path('app.js').read_text(encoding='utf-8')
+          forbidden=['VMC_CLOUDFLARE_UI_PATCH','VMC_UI_FIXES_V2','VMC_REGISTRATION_ALIGNMENT','VMC_FINAL_HARDENING','VMC_PRODUCTION_CUSTOMER_FIXES','VMC_REGISTRATION_LAYOUT_UPGRADE_SCRIPT','VMC_REGISTRATION_FINAL_LAYOUT_FIX_SCRIPT']
+          for x in forbidden:
+              if x in html: raise SystemExit(f'Forbidden registration override remains: {x}')
+          if "if(!d.receipt_reference?.trim())" in js: raise SystemExit('Payment reference is still mandatory in app.js')
+          if "if(!d.emergency_contact?.trim())" not in js: raise SystemExit('Emergency contact requirement missing')
+          if "vmc-registration-api" not in js: raise SystemExit('Registration Edge Function invocation missing')
+          if 'profilePicture' in html: raise SystemExit('Registration-side profile picture code remains')
+          print('Registration invariants verified.')
           PY
       - name: Commit repair
         run: |
@@ -55,5 +83,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html app.js
           git diff --cached --quiet && exit 0
-          git commit -m 'Restore previous registration form design'
+          git commit -m 'Restore previous registration design and runtime'
           git push

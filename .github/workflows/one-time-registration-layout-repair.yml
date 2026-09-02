@@ -1,0 +1,61 @@
+name: One-time registration form layout repair
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply final two-column registration layout
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          start=s.rfind('/* VMC FINAL REGISTRATION LAYOUT */')
+          if start < 0:
+              raise SystemExit('FINAL_LAYOUT_MARKER_NOT_FOUND')
+          replacement=r'''/* VMC FINAL REGISTRATION LAYOUT */
+          (()=>{const apply=()=>{if(document.getElementById('vmcFinalRegistrationLayout'))return;const st=document.createElement('style');st.id='vmcFinalRegistrationLayout';st.textContent=`
+          #registerView .vmc-reg-step:not([hidden]){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start!important;width:100%!important}
+          #registerView .vmc-reg-step>*{min-width:0!important}
+          #registerView .vmc-reg-step>.vmc-reg-welcome,#registerView .vmc-reg-step>.selected-plan,#registerView .vmc-reg-step>.vmc-reg-section,#registerView .vmc-reg-step>.vmc-reg-rules,#registerView .vmc-reg-step>.vmc-reg-actions,#registerView .vmc-reg-step>.vmc-reg-skip,#registerView .vmc-reg-step>.vmc-reg-optional-intro{grid-column:1/-1!important}
+          #registerView .vmc-reg-step>.field{grid-column:span 1!important;margin:0!important;min-width:0!important}
+          #registerView .vmc-reg-step .field input,#registerView .vmc-reg-step .field select{width:100%!important;box-sizing:border-box!important;min-width:0!important}
+          #registerView .vmc-reg-step .field label::after{content:' *';color:#ef233c;font-weight:900}
+          #registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:12px 16px!important;width:100%!important}
+          #registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>h4,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-section-copy{grid-column:1/-1!important}
+          #registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.field,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-price{grid-column:span 1!important}
+          #registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-price{align-self:end!important;margin:0!important}
+          #registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:10px 16px!important}
+          #registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership)>h4,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership)>.vmc-reg-section-copy{grid-column:1/-1!important}
+          #registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-rules{justify-content:flex-start!important}
+          #registerView .vmc-reg-actions{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:10px!important;align-items:center!important}
+          #registerView .vmc-reg-actions .btn{width:100%!important;min-width:0!important}
+          #registerView .vmc-reg-skip{width:100%!important}
+          @media(max-width:760px){
+            #registerView .vmc-reg-step:not([hidden]),#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership),#registerView .vmc-reg-actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+            #registerView .vmc-reg-step .vmc-reg-welcome h3,#registerView .vmc-reg-step .vmc-reg-optional-intro h3{font-size:1.12rem}
+            #registerView .vmc-reg-actions{display:grid!important;flex-direction:initial!important}
+            #registerView .vmc-reg-actions .btn{width:100%!important}
+          }`;
+          document.head.appendChild(st)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply()})();
+          '''
+          s=s[:start]+replacement
+          p.write_text(s)
+          PY
+          node --check app.js
+          grep -q "grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important" app.js
+      - name: Commit repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          if git diff --cached --quiet; then echo "No changes needed"; exit 0; fi
+          git commit -m "fix: enforce two-column registration form on all devices"
+          git push

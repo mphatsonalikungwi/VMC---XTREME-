@@ -1,6 +1,8 @@
 name: Registration source cleanup
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/registration-source-cleanup.yml'
 permissions:
   contents: write
 jobs:
@@ -51,10 +53,11 @@ login.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagatio
           ! grep -q 'publicRegister' cloudflare-ui-patch.js
           ! grep -q "e.target===reg" cloudflare-ui-patch.js
           grep -q 'function upgradePublic' cloudflare-ui-patch.js
-      - name: Commit cleanup
+      - name: Commit cleanup and remove temporary workflow
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add cloudflare-ui-patch.js
-          git commit -m 'refactor: make app.js canonical registration owner' || exit 0
+          git rm .github/workflows/registration-source-cleanup.yml
+          git commit -m 'refactor: make app.js canonical registration owner'
           git push

@@ -1,0 +1,83 @@
+name: One-time registration architecture cleanup
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove duplicate registration layout machinery and make the wizard canonical
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app = Path('app.js')
+          s = app.read_text()
+          s = s.replace("function vmcCompactRegistrationLayout(){}\n", "")
+          s = s.replace("function vmcRegistrationSameLayout(){}\n", "")
+          s = s.replace("setupNavigation();setupLoginAndRegistrationSwitches();setupContact();setupWaterAndPayments();setupGallery();setupMap();setupServices();vmcRegistrationSameLayout();setupRegistrationWizard();", "setupNavigation();setupLoginAndRegistrationSwitches();setupContact();setupWaterAndPayments();setupGallery();setupMap();setupServices();setupRegistrationWizard();")
+          s = s.replace(
+              ".vmc-reg-step{display:grid;gap:13px}",
+              ".vmc-reg-step{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 16px;width:100%}.vmc-reg-step>.field{grid-column:auto!important;min-width:0;width:100%}.vmc-reg-step>.vmc-reg-welcome,.vmc-reg-step>.selected-plan,.vmc-reg-step>.vmc-reg-section,.vmc-reg-step>.vmc-reg-rules,.vmc-reg-step>.vmc-reg-actions,.vmc-reg-step>.vmc-reg-skip,.vmc-reg-step>.vmc-reg-optional-intro{grid-column:1/-1}.vmc-reg-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}.vmc-reg-section>h4,.vmc-reg-section>.vmc-reg-section-copy{grid-column:1/-1}.vmc-reg-section>.field{grid-column:auto!important;min-width:0;width:100%}.vmc-reg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.vmc-reg-actions .btn{width:100%;min-width:0}"
+          )
+          s = s.replace(
+              "@media(max-width:760px){.vmc-reg-progress{font-size:.62rem}.vmc-reg-progress span{padding:9px 8px}.vmc-reg-actions{flex-direction:column}.vmc-reg-actions .btn{width:100%}.vmc-reg-welcome h3,.vmc-reg-optional-intro h3{font-size:1.12rem}}",
+              "@media(max-width:760px){.vmc-reg-progress{font-size:.62rem}.vmc-reg-progress span{padding:9px 8px}.vmc-reg-step{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px}.vmc-reg-section{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.vmc-reg-actions{grid-template-columns:repeat(2,minmax(0,1fr));display:grid}.vmc-reg-actions .btn{width:100%;min-width:0}.vmc-reg-welcome h3,.vmc-reg-optional-intro h3{font-size:1.12rem}.vmc-reg-step .field label{font-size:.7rem}.vmc-reg-step .field input,.vmc-reg-step .field select{padding:11px 10px;font-size:.9rem}}"
+          )
+          marker = "\n/* VMC FINAL REGISTRATION LAYOUT */"
+          if marker in s:
+              s = s.split(marker, 1)[0].rstrip() + "\n"
+          app.write_text(s)
+
+          index = Path('index.html')
+          h = index.read_text()
+          start = h.find('<style id="VMC_DIRECT_REGISTRATION_LAYOUT">')
+          if start >= 0:
+              end = h.find('</style>', start)
+              if end < 0:
+                  raise SystemExit('DIRECT_LAYOUT_STYLE_UNCLOSED')
+              h = h[:start] + h[end+8:]
+          h = h.replace('src="app.js?v=20260902-layout"', 'src="app.js"')
+          index.write_text(h)
+
+          build = Path('cloudflare-build.mjs')
+          b = build.read_text()
+          b = b.replace("const registrationLayout=fs.readFileSync('registration-layout-v3.js','utf8');", "")
+          b = b.replace(",registrationLayoutTag=tag('VMC_REGISTRATION_LAYOUT_V3',registrationLayout)", "")
+          b = b.replace(";index=upsert(index,'VMC_REGISTRATION_LAYOUT_V3',registrationLayoutTag)", "")
+          build.write_text(b)
+          PY
+          node --check app.js
+          node --check cloudflare-build.mjs
+          grep -q 'grid-template-columns:repeat(2,minmax(0,1fr))' app.js
+          ! grep -q 'VMC FINAL REGISTRATION LAYOUT' app.js
+          ! grep -q 'VMC_DIRECT_REGISTRATION_LAYOUT' index.html
+          ! grep -q 'registration-layout-v3.js' cloudflare-build.mjs
+      - name: Remove obsolete registration files and workflows
+        shell: bash
+        run: |
+          rm -f registration-layout-v3.js
+          rm -f .github/workflows/one-time-registration-layout-repair.yml
+          rm -f .github/workflows/vmc-registration-direct-layout.yml
+          rm -f .github/workflows/vmc-registration-final-layout.yml
+      - name: Verify obsolete machinery is gone
+        shell: bash
+        run: |
+          ! test -e registration-layout-v3.js
+          ! test -e .github/workflows/one-time-registration-layout-repair.yml
+          ! test -e .github/workflows/vmc-registration-direct-layout.yml
+          ! test -e .github/workflows/vmc-registration-final-layout.yml
+          grep -q 'function setupRegistrationWizard()' app.js
+          grep -q 'grid-template-columns:repeat(2,minmax(0,1fr))' app.js
+      - name: Commit surgical cleanup and self-delete this workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js index.html cloudflare-build.mjs registration-layout-v3.js .github/workflows/one-time-registration-layout-repair.yml .github/workflows/vmc-registration-direct-layout.yml .github/workflows/vmc-registration-final-layout.yml .github/workflows/registration-architecture-cleanup.yml
+          git commit -m 'refactor: consolidate registration layout into canonical wizard'
+          git push

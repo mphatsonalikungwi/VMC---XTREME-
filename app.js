@@ -31,25 +31,7 @@ async function registerMember(e){e.preventDefault();const f=e.currentTarget,err=
 async function loginMember(e){e.preventDefault();const err=$('#loginError'),submit=$('#loginSubmit'),email=($('#loginEmail')?.value||'').trim().toLowerCase(),password=$('#loginPassword')?.value||'';setError(err,'');if(!email||!password){setError(err,'Enter your email and password.');return}submit.disabled=true;submit.textContent='Signing in…';try{const {error}=await window.vmcSecureLogin(email,password);if(error)throw error;const {user,profile}=await currentProfile();if(!user||!profile)throw Error('Your authentication succeeded, but your VMC profile could not be loaded.');const management=Boolean(profile.is_admin)||['owner','manager','staff'].includes(profile.account_role);if(state.loginMode==='admin'&&!management){await supabase.auth.signOut();throw Error('Admin access required. Use My VMC Account for a customer account.')}if(!management){if(profile.must_change_password||profile.security_action_required){renderPasswordRequired(profile,user.email);return}const {data:lifecycle,error:lifecycleError}=await supabase.functions.invoke('vmc-member-api-v2',{body:{action:'status'}});if(lifecycleError)throw lifecycleError;if(lifecycle?.must_change_password||lifecycle?.security_action_required){renderPasswordRequired(lifecycle.profile||profile,user.email);return}if(lifecycle?.status==='reactivation_required'){renderReactivation(lifecycle.profile||profile,user.email);return}}if(profile.account_status!=='active')throw Error('This account is not active. Contact VMC management.');if(management){window.location.assign('dashboard.html');return}renderAccount(profile,user.email)}catch(e){console.error('VMC login error:',e);setError(err,friendlyError(e))}finally{submit.disabled=false;submit.textContent='Sign In'}}
 async function signOut(){const {error}=await supabase.auth.signOut();if(error){showToast(error.message);return}closeModal();showToast('You have been signed out.')}
 function vmcCompactRegistrationLayout(){if(document.getElementById('vmcRegistrationCompactStyles'))return;const st=document.createElement('style');st.id='vmcRegistrationCompactStyles';st.textContent=`@media(min-width:761px){#registerView .vmc-reg-step#vmcRegStep1{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 18px;align-items:start}#registerView #vmcRegStep1>.vmc-reg-welcome,#registerView #vmcRegStep1>.selected-plan,#registerView #vmcRegStep1>.vmc-reg-actions,#registerView #vmcRegStep1>.vmc-reg-rules,#registerView #vmcRegStep1>.vmc-reg-section:not(.vmc-reg-membership){grid-column:1/-1}#registerView #vmcRegStep1>.vmc-reg-membership{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 14px;align-items:end}#registerView #vmcRegStep1>.vmc-reg-membership>h4,#registerView #vmcRegStep1>.vmc-reg-membership>.vmc-reg-section-copy{grid-column:1/-1}#registerView #vmcRegStep1>.vmc-reg-section:not(.vmc-reg-membership){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 14px;align-items:end}#registerView #vmcRegStep1>.vmc-reg-section:not(.vmc-reg-membership)>h4,#registerView #vmcRegStep1>.vmc-reg-section:not(.vmc-reg-membership)>.vmc-reg-section-copy{grid-column:1/-1}#registerView #vmcRegStep1>.field{margin:0!important}#registerView #vmcRegStep1>.vmc-reg-price{margin:0!important}#registerView #vmcRegStep1 label::after{content:' *';color:#ef233c;font-weight:900}}@media(max-width:760px){#registerView #vmcRegStep1{display:grid;grid-template-columns:1fr{}}`;document.head.appendChild(st)}
-function vmcRegistrationSameLayout(){
-if(document.getElementById('vmcRegistrationSameLayout'))return;
-const st=document.createElement('style');st.id='vmcRegistrationSameLayout';st.textContent=`
-/* Registration uses the same two-column layout on every device. No mobile one-column fallback. */
-#registerView .vmc-reg-step[data-step="1"].active,
-#registerView .vmc-reg-step[data-step="2"].active{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start!important}
-#registerView .vmc-reg-step[data-step="1"]>*:not(.field),
-#registerView .vmc-reg-step[data-step="2"]>*:not(.field){grid-column:1/-1}
-#registerView .vmc-reg-step[data-step="1"] .field,
-#registerView .vmc-reg-step[data-step="2"] .field{min-width:0!important;margin:0!important}
-#registerView .vmc-reg-step[data-step="1"] .field input,
-#registerView .vmc-reg-step[data-step="1"] .field select,
-#registerView .vmc-reg-step[data-step="2"] .field input,
-#registerView .vmc-reg-step[data-step="2"] .field select{width:100%!important;box-sizing:border-box}
-#registerView .vmc-reg-step[data-step="1"] label::after{content:' *';color:#ef233c;font-weight:900}
-@media(max-width:760px){
-  #registerView .vmc-reg-step[data-step="1"].active,
-  #registerView .vmc-reg-step[data-step="2"].active{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
-}
+function vmcRegistrationSameLayout(){if(document.getElementById("vmcRegistrationSameLayout"))return;const st=document.createElement("style");st.id="vmcRegistrationSameLayout";st.textContent=;document.head.appendChild(st)}
 `;document.head.appendChild(st);
 }
 function setupRegistrationWizard(){

@@ -10,54 +10,77 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Remove duplicate public registration interceptor
+      - name: Surgically remove competing public registration implementation
         shell: python
         run: |
           from pathlib import Path
+          import re
+
           p = Path('cloudflare-ui-patch.js')
           s = p.read_text()
-          start = s.index('async function publicRegister(form){')
-          end = s.index('function upgradePublic(){', start)
+
+          # Remove publicRegister by balanced-brace parsing so only that function is deleted.
+          start = s.find('async function publicRegister(')
+          if start < 0:
+              raise SystemExit('publicRegister not found')
+          brace = s.find('{', start)
+          depth = 0
+          quote = None
+          esc = False
+          end = None
+          for i in range(brace, len(s)):
+              c = s[i]
+              if quote:
+                  if esc: esc = False
+                  elif c == '\\': esc = True
+                  elif c == quote: quote = None
+              else:
+                  if c in "'\"`": quote = c
+                  elif c == '{': depth += 1
+                  elif c == '}':
+                      depth -= 1
+                      if depth == 0:
+                          end = i + 1
+                          break
+          if end is None:
+              raise SystemExit('publicRegister is unbalanced')
           s = s[:start] + s[end:]
-          start = s.index('function upgradePublic(){')
-          end = s.index('function durationFix(root=document){', start)
-          replacement = '''function upgradePublic(){
-const login=$('#loginForm');
-if(!login)return;
-style();
-const le=$('#loginEmail');
-if(le){
-  le.type='text';
-  le.name='identifier';
-  le.required=true;
-  le.placeholder='Username or phone number';
-  const lab=login.querySelector('label[for="loginEmail"]');
-  if(lab)lab.textContent='VMC Username or Phone Number';
-  let h=login.querySelector('.vmc-login-hint');
-  if(!h){
-    h=document.createElement('p');
-    h.className='vmc-login-hint';
-    h.textContent='Use your VMC Username or registered phone number.';
-    login.querySelector('.form-grid')?.prepend(h)
-  }
-}
-if(login.dataset.vmcIntercept)return;
-login.dataset.vmcIntercept='1';
-login.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();publicLogin(login)},true)
-}
+
+          # Replace upgradePublic with login-only behavior. Registration remains owned by app.js.
+          start = s.find('function upgradePublic(')
+          end_marker = 'function durationFix(root=document){'
+          end = s.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('upgradePublic boundaries not found')
+          replacement = '''function upgradePublic(){const login=$('#loginForm');if(!login)return;style();const le=$('#loginEmail');if(le){le.type='text';le.name='identifier';le.required=true;le.placeholder='Username or phone number';const lab=login.querySelector('label[for="loginEmail"]');if(lab)lab.textContent='VMC Username or Phone Number';let h=login.querySelector('.vmc-login-hint');if(!h){h=document.createElement('p');h.className='vmc-login-hint';h.textContent='Use your VMC Username or registered phone number.';login.querySelector('.form-grid')?.prepend(h)}}if(login.dataset.vmcIntercept)return;login.dataset.vmcIntercept='1';login.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();publicLogin(login)},true)}
 '''
           s = s[:start] + replacement + s[end:]
-          p.write_text(s)
-      - name: Verify registration interceptor is gone
-        run: |
-          ! grep -q 'publicRegister' cloudflare-ui-patch.js
-          ! grep -q "e.target===reg" cloudflare-ui-patch.js
-          grep -q 'function upgradePublic' cloudflare-ui-patch.js
-      - name: Commit cleanup and remove temporary workflow
+
+          # Remove the stale registration-only layout style from index.html.
+          ip = Path('index.html')
+          html = ip.read_text()
+          html2 = re.sub(r'<style id="VMC_REGISTRATION_LAYOUT_FIX_V2">.*?</style>\s*', '', html, flags=re.S)
+          ip.write_text(html2)
+
+          # Remove a later duplicate flex declaration that could override the canonical action grid.
+          ap = Path('app.js')
+          a = ap.read_text()
+          a = a.replace('.vmc-reg-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}', '.vmc-reg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:5px}')
+          ap.write_text(a)
+
+          # Hard verification before commit.
+          if 'publicRegister' in s: raise SystemExit('publicRegister remains')
+          if "$('#registerForm')" in s: raise SystemExit('registerForm ownership remains in cloudflare-ui-patch')
+          if 'e.target===reg' in s: raise SystemExit('registration submit interception remains')
+          if '<style id="VMC_REGISTRATION_LAYOUT_FIX_V2">' in html2: raise SystemExit('stale registration layout style remains')
+          if '.vmc-reg-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}' in a: raise SystemExit('duplicate flex action rule remains')
+          print('SOURCE VERIFICATION PASSED')
+      - name: Commit cleanup and remove this temporary workflow
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add cloudflare-ui-patch.js
+          git add cloudflare-ui-patch.js index.html app.js
           git rm .github/workflows/registration-source-cleanup.yml
-          git commit -m 'refactor: make app.js canonical registration owner'
+          git diff --cached --check
+          git commit -m 'fix: remove competing registration implementation'
           git push

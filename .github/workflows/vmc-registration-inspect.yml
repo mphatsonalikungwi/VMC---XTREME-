@@ -9,6 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect registration wizard
+      - name: Inspect layout overrides
         run: |
-          python3 -c "from pathlib import Path; s=Path('app.js').read_text(); a=s.find('function setupRegistrationWizard()'); print(s[a:a+18000])"
+          python3 -c "from pathlib import Path; s=Path('app.js').read_text(); a=s.find('function vmcRegistrationSameLayout'); print('sameLayout=',a); print(s[a:a+9000])"

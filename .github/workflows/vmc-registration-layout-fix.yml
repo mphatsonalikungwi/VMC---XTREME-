@@ -1,0 +1,31 @@
+name: Fix registration layout
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix actual wizard selectors
+        run: |
+          python3 -c "from pathlib import Path; p=Path('app.js'); s=p.read_text(); old='''#registerView .vmc-reg-step[data-step=\"1\"].active,\n#registerView .vmc-reg-step[data-step=\"2\"].active{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start!important}\n#registerView .vmc-reg-step[data-step=\"1\"]>*:not(.field),\n#registerView .vmc-reg-step[data-step=\"2\"]>*:not(.field){grid-column:1/-1}\n#registerView .vmc-reg-step[data-step=\"1\"] .field,\n#registerView .vmc-reg-step[data-step=\"2\"] .field{min-width:0!important;margin:0!important}\n#registerView .vmc-reg-step[data-step=\"1\"] .field input,\n#registerView .vmc-reg-step[data-step=\"1\"] .field select,\n#registerView .vmc-reg-step[data-step=\"2\"] .field input,\n#registerView .vmc-reg-step[data-step=\"2\"] .field select{width:100%!important;box-sizing:border-box}\n#registerView .vmc-reg-step[data-step=\"1\"] label::after{content:\" *\";color:#ef233c;font-weight:900}\n@media(max-width:760px){\n  #registerView .vmc-reg-step[data-step=\"1\"].active,\n  #registerView .vmc-reg-step[data-step=\"2\"].active{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}\n}\n'''; new='''#registerView .vmc-reg-step#vmcRegStep1:not([hidden]),\n#registerView .vmc-reg-step#vmcRegStep2:not([hidden]){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start!important}\n#registerView .vmc-reg-step#vmcRegStep1>*:not(.field),\n#registerView .vmc-reg-step#vmcRegStep2>*:not(.field){grid-column:1/-1}\n#registerView .vmc-reg-step#vmcRegStep1 .field,\n#registerView .vmc-reg-step#vmcRegStep2 .field{min-width:0!important;margin:0!important}\n#registerView .vmc-reg-step#vmcRegStep1 .field input,\n#registerView .vmc-reg-step#vmcRegStep1 .field select,\n#registerView .vmc-reg-step#vmcRegStep2 .field input,\n#registerView .vmc-reg-step#vmcRegStep2 .field select{width:100%!important;box-sizing:border-box}\n#registerView .vmc-reg-step#vmcRegStep1 .field label::after{content:\" *\";color:#ef233c;font-weight:900}\n#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-rules::after{content:\" *\";color:#ef233c;font-weight:900;margin-left:2px}\n#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership{display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px 16px!important}\n#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>h4,\n#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-section-copy{grid-column:1/-1}\n#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership .vmc-reg-price{margin:0!important}\n'''; assert old in s, 'expected layout block not found'; p.write_text(s.replace(old,new,1))"
+      - name: Verify source
+        run: |
+          grep -q 'vmcRegStep1:not(\[hidden\])' app.js
+          grep -q 'grid-template-columns:minmax(0,1fr) minmax(0,1fr)' app.js
+          grep -q 'vmcRegStep1 .field label::after' app.js
+          ! grep -q 'vmc-reg-step\[data-step=' app.js
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git commit -m 'fix: use actual registration step selectors' || true
+          git push
+          rm .github/workflows/vmc-registration-layout-fix.yml .github/workflows/vmc-registration-inspect.yml
+          git add .github/workflows/vmc-registration-layout-fix.yml .github/workflows/vmc-registration-inspect.yml
+          git commit -m 'chore: remove temporary registration workflows' || true
+          git push

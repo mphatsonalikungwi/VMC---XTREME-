@@ -1,0 +1,36 @@
+name: Repair registration JavaScript
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Repair malformed registration layout function
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          bad="function vmcRegistrationSameLayout(){if(document.getElementById(\"vmcRegistrationSameLayout\"))return;const st=document.createElement(\"style\");st.id=\"vmcRegistrationSameLayout\";st.textContent=;document.head.appendChild(st)}"
+          if bad not in s:
+              raise SystemExit('Expected malformed function was not found; refusing unrelated edit.')
+          p.write_text(s.replace(bad,'function vmcRegistrationSameLayout(){}'))
+          PY
+      - name: Syntax check
+        run: node --check app.js
+      - name: Commit repair and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git rm .github/workflows/repair-registration-js.yml
+          git commit -m 'fix: restore registration JavaScript execution'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main

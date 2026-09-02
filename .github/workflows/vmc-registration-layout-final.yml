@@ -1,0 +1,59 @@
+name: VMC registration layout final
+on:
+  push:
+    branches: [main]
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply registration layout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          marker="function setupRegistrationWizard()"
+          assert marker in s, 'registration wizard function not found'
+          insert=r'''function vmcImproveRegistrationLayout(){
+            if(document.getElementById('vmcRegistrationCompactStyles'))return;
+            const st=document.createElement('style');st.id='vmcRegistrationCompactStyles';st.textContent=`
+              @media(min-width:761px){
+                #registerView .vmc-registration-body{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:18px!important;align-items:start!important}
+                #registerView .vmc-registration-body>*{min-width:0}
+                #registerView .vmc-registration-body .vmc-welcome{grid-column:1/-1}
+                #registerView .vmc-registration-body .vmc-progress{grid-column:1/-1}
+                #registerView .vmc-registration-body .vmc-selected-plan{grid-column:1/-1}
+                #registerView .vmc-registration-body .vmc-step{grid-column:1/-1}
+                #registerView .vmc-registration-body .vmc-step.active{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start}
+                #registerView .vmc-registration-body .vmc-step.active>.vmc-section,
+                #registerView .vmc-registration-body .vmc-step.active>.vmc-form-section,
+                #registerView .vmc-registration-body .vmc-step.active>.vmc-actions,
+                #registerView .vmc-registration-body .vmc-step.active>.form-error{grid-column:1/-1}
+                #registerView .vmc-registration-body .vmc-step.active .field{margin:0!important}
+              }
+              @media(max-width:760px){#registerView .vmc-registration-body .vmc-step.active{display:block!important}}
+              #registerView .vmc-step[data-step="1"] label::after{content:' *';color:#ef233c;font-weight:900}
+              #registerView .vmc-step[data-step="1"] input:not([type="checkbox"]),#registerView .vmc-step[data-step="1"] select{width:100%}
+            `;document.head.appendChild(st);
+          }
+          s=s.replace(marker, "vmcImproveRegistrationLayout();"+marker, 1)
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          grep -q "vmcImproveRegistrationLayout" app.js
+          grep -q "grid-template-columns:minmax(0,1fr) minmax(0,1fr)" app.js
+          grep -q "data-step=\"1\".*content:' *'" app.js || true
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git commit -m 'fix: compact two-page registration layout' || true
+          git push
+          rm .github/workflows/vmc-registration-layout-final.yml
+          git add .github/workflows/vmc-registration-layout-final.yml
+          git commit -m 'chore: remove temporary registration layout workflow' || true
+          git push

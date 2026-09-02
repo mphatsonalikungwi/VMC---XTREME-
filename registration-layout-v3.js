@@ -22,6 +22,12 @@
         width:100%!important;
         margin:0!important;
       }
+      /* Every field is one compact grid cell; headings/copy stay full width. */
+      #registerView .vmc-reg-step .field{
+        grid-column:auto!important;
+        min-width:0!important;
+        width:100%!important;
+      }
       /* Section headings/copy and totals span the form, but their controls remain two-column. */
       #registerView .vmc-reg-step > .vmc-reg-section,
       #registerView .vmc-reg-step > .vmc-reg-rules,
@@ -30,9 +36,6 @@
       #registerView .vmc-reg-step > .notice,
       #registerView .vmc-reg-step > p{
         grid-column:1/-1!important;
-      }
-      #registerView .vmc-reg-step > .field.full{
-        grid-column:auto!important;
       }
       #registerView .vmc-reg-step .vmc-reg-section{
         display:grid!important;
@@ -45,6 +48,7 @@
         grid-column:1/-1!important;
       }
       #registerView .vmc-reg-step .vmc-reg-section > .field{
+        grid-column:auto!important;
         min-width:0!important;
         width:100%!important;
         margin:0!important;

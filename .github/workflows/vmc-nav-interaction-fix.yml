@@ -15,15 +15,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-
-          # Remove all known generated duplicate registration handlers from the public page.
           p=Path('index.html'); s=p.read_text(encoding='utf-8')
           for sid in ['VMC_CLOUDFLARE_UI_PATCH','VMC_UI_FIXES_V2','VMC_REGISTRATION_ALIGNMENT','VMC_REGISTRATION_WIZARD','VMC_PRODUCTION_CUSTOMER_FIXES']:
               s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>','',s,flags=re.S)
           p.write_text(s,encoding='utf-8')
 
-          # Make app.js the single browser registration handler and use the deployed
-          # vmc-registration-api Edge Function for account creation.
           p=Path('app.js'); js=p.read_text(encoding='utf-8')
           js=js.replace("if(!d.payment_channel)return'Please select a payment channel.';if(!$('#rulesCheck')?.checked)","if(!d.payment_channel)return'Please select a payment channel.';if(!d.emergency_contact?.trim())return'Emergency contact is required for member safety.';if(!$('#rulesCheck')?.checked)")
           a=js.index('async function registerMember(e){'); b=js.index('async function loginMember(e){',a)
@@ -34,17 +30,15 @@ jobs:
           js=js.replace("skip.onclick=()=>{if(validateStep1())f.requestSubmit()};","skip.onclick=()=>{if(validateStep1()){const emergency=$('#emergencyContact');if(emergency&&!emergency.checkValidity()){emergency.reportValidity();return}f.requestSubmit()}};")
           p.write_text(js,encoding='utf-8')
 
-          # Display the server-generated username in the Member Portal only.
           p=Path('customer-dashboard.html'); c=p.read_text(encoding='utf-8')
           marker='<h2 id="name">Your profile</h2>'
           if marker in c and 'id="username"' not in c:
               c=c.replace(marker,marker+'<div class="username-display" style="margin:6px 0 12px;color:#aeb2b9;font-size:.78rem">VMC Username: <strong id="username" style="color:#ff6977">—</strong></div>',1)
-          needle="$('#name').textContent=p.full_name||'Your profile';"
+          needle="$('#name').textContent=name;"
           if needle in c and "$('#username').textContent" not in c:
               c=c.replace(needle,needle+"$('#username').textContent=p.username||'—';",1)
           p.write_text(c,encoding='utf-8')
 
-          # Stop the legacy build helper from referencing deleted registration files.
           p=Path('cloudflare-build.mjs'); build=p.read_text(encoding='utf-8')
           for name,var in [('cloudflare-registration-alignment.js','registrationAlignment'),('vmc-registration-wizard.js','registrationWizard'),('vmc-production-customer-fixes.js','productionFixes')]:
               build=build.replace("const "+var+"=fs.readFileSync('"+name+"','utf8');",'')
@@ -56,7 +50,7 @@ jobs:
           build=build.replace("index=upsert(index,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag);dashboard=upsert(dashboard,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag);",'')
           p.write_text(build,encoding='utf-8')
           PY
-      - name: Remove obsolete registration files and one-time helpers
+      - name: Remove obsolete registration files and temporary helpers
         run: |
           rm -f cloudflare-registration-alignment.js vmc-registration-wizard.js vmc-production-customer-fixes.js .vmc-registration-trigger .github/workflows/vmc-registration-consolidation.yml
       - name: Validate consolidated source

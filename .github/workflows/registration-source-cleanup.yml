@@ -11,70 +11,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Surgically remove competing public registration implementation
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           import re
 
           p = Path('cloudflare-ui-patch.js')
           s = p.read_text()
 
-          # Remove publicRegister by balanced-brace parsing so only that function is deleted.
-          start = s.find('async function publicRegister(')
-          if start < 0:
-              raise SystemExit('publicRegister not found')
-          brace = s.find('{', start)
-          depth = 0
-          quote = None
-          esc = False
-          end = None
-          for i in range(brace, len(s)):
-              c = s[i]
-              if quote:
-                  if esc: esc = False
-                  elif c == '\\': esc = True
-                  elif c == quote: quote = None
-              else:
-                  if c in "'\"`": quote = c
-                  elif c == '{': depth += 1
-                  elif c == '}':
-                      depth -= 1
-                      if depth == 0:
-                          end = i + 1
-                          break
-          if end is None:
-              raise SystemExit('publicRegister is unbalanced')
-          s = s[:start] + s[end:]
+          # publicRegister is a single-line function in this source; remove only through the next function boundary.
+          pattern = r'async function publicRegister\(form\)\{.*?\nfunction upgradePublic'
+          s2, n = re.subn(pattern, 'function upgradePublic', s, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit('publicRegister boundary not found')
 
-          # Replace upgradePublic with login-only behavior. Registration remains owned by app.js.
-          start = s.find('function upgradePublic(')
+          # Registration must remain owned exclusively by app.js. Keep only the public login enhancement here.
+          start = s2.find('function upgradePublic(')
           end_marker = 'function durationFix(root=document){'
-          end = s.find(end_marker, start)
+          end = s2.find(end_marker, start)
           if start < 0 or end < 0:
               raise SystemExit('upgradePublic boundaries not found')
           replacement = '''function upgradePublic(){const login=$('#loginForm');if(!login)return;style();const le=$('#loginEmail');if(le){le.type='text';le.name='identifier';le.required=true;le.placeholder='Username or phone number';const lab=login.querySelector('label[for="loginEmail"]');if(lab)lab.textContent='VMC Username or Phone Number';let h=login.querySelector('.vmc-login-hint');if(!h){h=document.createElement('p');h.className='vmc-login-hint';h.textContent='Use your VMC Username or registered phone number.';login.querySelector('.form-grid')?.prepend(h)}}if(login.dataset.vmcIntercept)return;login.dataset.vmcIntercept='1';login.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();publicLogin(login)},true)}
 '''
-          s = s[:start] + replacement + s[end:]
+          s2 = s2[:start] + replacement + s2[end:]
 
-          # Remove the stale registration-only layout style from index.html.
+          # Remove stale registration-only CSS from the source page.
           ip = Path('index.html')
           html = ip.read_text()
           html2 = re.sub(r'<style id="VMC_REGISTRATION_LAYOUT_FIX_V2">.*?</style>\s*', '', html, flags=re.S)
-          ip.write_text(html2)
 
-          # Remove a later duplicate flex declaration that could override the canonical action grid.
+          # Remove only the known duplicate flex declaration; canonical registration CSS lives in app.js wizard setup.
           ap = Path('app.js')
           a = ap.read_text()
-          a = a.replace('.vmc-reg-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}', '.vmc-reg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:5px}')
-          ap.write_text(a)
+          a2 = a.replace('.vmc-reg-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}', '.vmc-reg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:5px}')
 
-          # Hard verification before commit.
-          if 'publicRegister' in s: raise SystemExit('publicRegister remains')
-          if "$('#registerForm')" in s: raise SystemExit('registerForm ownership remains in cloudflare-ui-patch')
-          if 'e.target===reg' in s: raise SystemExit('registration submit interception remains')
+          if 'publicRegister' in s2: raise SystemExit('publicRegister remains')
+          if "$('#registerForm')" in s2: raise SystemExit('registerForm ownership remains in cloudflare-ui-patch')
+          if 'e.target===reg' in s2: raise SystemExit('registration submit interception remains')
           if '<style id="VMC_REGISTRATION_LAYOUT_FIX_V2">' in html2: raise SystemExit('stale registration layout style remains')
-          if '.vmc-reg-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}' in a: raise SystemExit('duplicate flex action rule remains')
+          if '.vmc-reg-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}' in a2: raise SystemExit('duplicate flex action rule remains')
+
+          p.write_text(s2)
+          ip.write_text(html2)
+          ap.write_text(a2)
           print('SOURCE VERIFICATION PASSED')
+          PY
       - name: Commit cleanup and remove this temporary workflow
         run: |
           git config user.name 'github-actions[bot]'

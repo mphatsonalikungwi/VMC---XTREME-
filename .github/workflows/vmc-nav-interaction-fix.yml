@@ -1,47 +1,86 @@
-name: VMC Navigation Interaction Fix
+name: VMC Registration Consolidation
 on:
   push:
     branches: [main]
 permissions:
   contents: write
 jobs:
-  restore-registration:
+  consolidate:
     if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Preserve previous registration design and finish authorized data handoff
+      - name: Consolidate registration
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('index.html')
-          s=p.read_text(encoding='utf-8')
-          old="payment_channel:d.payment_channel,rules_accepted:true,rules_version:'VMC Rules v1.0'"
-          new="payment_channel:d.payment_channel,receipt_reference:String(d.receipt_reference||'').trim(),rules_accepted:true,rules_version:'VMC Rules v1.0'"
-          if old not in s: raise SystemExit('Registration payload anchor not found')
-          s=s.replace(old,new,1)
-          old2='${esc(d.username)}'
-          new2='${esc(data?.username||\'Generated automatically\')}'
-          if old2 not in s: raise SystemExit('Registration username display anchor not found')
-          s=s.replace(old2,new2,1)
+          import re
+
+          # Remove generated duplicate registration handlers from the public page.
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          for sid in ['VMC_CLOUDFLARE_UI_PATCH','VMC_UI_FIXES_V2','VMC_REGISTRATION_ALIGNMENT','VMC_REGISTRATION_WIZARD','VMC_PRODUCTION_CUSTOMER_FIXES']:
+              s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>\\s*','',s,flags=re.S)
+          # No registration-side profile picture/photo controls.
+          s=re.sub(r'<div[^>]*class="field"[^>]*>\\s*<label[^>]*>[^<]*(?:profile picture|photo|picture)[^<]*</label>.*?</div>','',s,flags=re.I|re.S)
           p.write_text(s,encoding='utf-8')
+
+          # Make app.js the single registration handler and use the deployed
+          # vmc-registration-api Edge Function for account creation.
+          p=Path('app.js'); js=p.read_text(encoding='utf-8')
+          js=js.replace("if(!d.payment_channel)return'Please select a payment channel.';if(!$('#rulesCheck')?.checked)","if(!d.payment_channel)return'Please select a payment channel.';if(!d.emergency_contact?.trim())return'Emergency contact is required for member safety.';if(!$('#rulesCheck')?.checked)")
+          a=js.index('async function registerMember(e){'); b=js.index('async function loginMember(e){',a)
+          fn="""async function registerMember(e){e.preventDefault();const f=e.currentTarget,err=$('#registerError'),submit=$('#registerSubmit'),d=Object.fromEntries(new FormData(f).entries()),ve=validateRegistration(d);setError(err,ve);if(ve)return;submit.disabled=true;submit.textContent='Creating account…';try{const tier=d.membership_tier,session=d.session_type,duration=Math.max(1,Math.min(3650,parseInt(d.duration_count,10)||1)),unit=d.duration_unit||({'Per Day':'day','Per Week':'week','Per Month':'month'}[tier]||'month'),payload={full_name:String(d.full_name).trim(),phone_number:String(d.phone_number).trim(),email:String(d.email||'').trim().toLowerCase(),password:d.password,date_of_birth:String(d.date_of_birth||'').trim(),gender:String(d.gender||'').trim(),emergency_contact:String(d.emergency_contact||'').trim(),membership_tier:tier,session_type:session,duration_count:duration,duration_unit:unit,payment_channel:d.payment_channel,receipt_reference:String(d.receipt_reference||'').trim(),rules_accepted:true,rules_version:'VMC Rules v1.0'};const {data,error}=await supabase.functions.invoke('vmc-registration-api',{body:payload});if(error)throw error;if(data?.error)throw Error(data.error);const profile={full_name:d.full_name,membership_tier:tier,session_type:session,payment_channel:d.payment_channel,receipt_reference:d.receipt_reference||'',payment_status:'Payment being reviewed',username:String(data?.username||'')};renderSuccess(profile,d.email||'');f.reset();state.selectedPlan=null;if($('#selectedPlanText'))$('#selectedPlanText').textContent='Choose a plan below or continue with your details.';window.vmcSetRegistrationStep?.(1)}catch(e){console.error('VMC registration error:',e);setError(err,friendlyError(e))}finally{submit.disabled=false;submit.textContent='Complete Registration'}}\n"""
+          js=js[:a]+fn+js[b:]
+          js=js.replace('Complete these profile options now, or skip them and finish them on your first gym visit.','Date of Birth and Gender are optional. Emergency Contact is required for member safety.')
+          js=js.replace("skip.textContent='Skip optional profile details and submit now';","skip.textContent='Submit with required information';")
+          js=js.replace("skip.onclick=()=>{if(validateStep1())f.requestSubmit()};","skip.onclick=()=>{if(validateStep1()){const emergency=$('#emergencyContact');if(emergency&&!emergency.checkValidity()){emergency.reportValidity();return}f.requestSubmit()}};")
+          p.write_text(js,encoding='utf-8')
+
+          # Display the server-generated username in the Member Portal only.
+          p=Path('customer-dashboard.html'); c=p.read_text(encoding='utf-8')
+          marker='<h2 id="name">Your profile</h2>'
+          if marker in c and 'id="username"' not in c:
+              c=c.replace(marker,marker+'<div class="username-display" style="margin:6px 0 12px;color:#aeb2b9;font-size:.78rem">VMC Username: <strong id="username" style="color:#ff6977">—</strong></div>',1)
+          needle="$('#name').textContent=p.full_name||'Your profile';"
+          if needle in c and "$('#username').textContent" not in c:
+              c=c.replace(needle,needle+"$('#username').textContent=p.username||'—';",1)
+          p.write_text(c,encoding='utf-8')
+
+          # Prevent the legacy build helper from referencing deleted registration files.
+          p=Path('cloudflare-build.mjs'); build=p.read_text(encoding='utf-8')
+          for name,var in [('cloudflare-registration-alignment.js','registrationAlignment'),('vmc-registration-wizard.js','registrationWizard'),('vmc-production-customer-fixes.js','productionFixes')]:
+              build=re.sub(r"const "+re.escape(var)+r"=fs\\.readFileSync\\('"+re.escape(name)+r"','utf8'\\);",'',build)
+          for expr in [r",?registrationAlignmentTag=tag\\('VMC_REGISTRATION_ALIGNMENT',registrationAlignment\\)",r",?registrationWizardTag=tag\\('VMC_REGISTRATION_WIZARD',registrationWizard\\)",r",?productionFixesTag=tag\\('VMC_PRODUCTION_CUSTOMER_FIXES',productionFixes\\)"]:
+              build=re.sub(expr,'',build)
+          for expr in [r"index=upsert\\(index,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag\\);dashboard=upsert\\(dashboard,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag\\);",r"index=upsert\\(index,'VMC_REGISTRATION_WIZARD',registrationWizardTag\\);",r"index=upsert\\(index,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag\\);dashboard=upsert\\(dashboard,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag\\);"]:
+              build=re.sub(expr,'',build)
+          p.write_text(build,encoding='utf-8')
           PY
-      - name: Verify authorized registration data handoff
+      - name: Remove obsolete registration files and one-time helpers
+        run: |
+          rm -f cloudflare-registration-alignment.js vmc-registration-wizard.js vmc-production-customer-fixes.js .vmc-registration-trigger .github/workflows/vmc-registration-consolidation.yml
+      - name: Validate
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          s=Path('index.html').read_text(encoding='utf-8')
-          assert 'VMC_REGISTRATION_ALIGNMENT' in s
-          assert 'receipt_reference:String(d.receipt_reference||\'\').trim()' in s
-          assert "data?.username||'Generated automatically'" in s
-          assert 'name="username"' not in s[s.find('<script id="VMC_REGISTRATION_ALIGNMENT">'):s.find('</script>',s.find('<script id="VMC_REGISTRATION_ALIGNMENT">'))]
-          print('Registration data handoff verified.')
+          index=Path('index.html').read_text(encoding='utf-8'); app=Path('app.js').read_text(encoding='utf-8'); customer=Path('customer-dashboard.html').read_text(encoding='utf-8'); build=Path('cloudflare-build.mjs').read_text(encoding='utf-8')
+          assert 'name="username"' not in index
+          assert 'VMC_REGISTRATION_ALIGNMENT' not in index
+          assert 'VMC_REGISTRATION_WIZARD' not in index
+          assert 'VMC_PRODUCTION_CUSTOMER_FIXES' not in index
+          start=app.index('async function registerMember(e){'); end=app.index('async function loginMember(e){',start); reg=app[start:end]
+          assert "invoke('vmc-registration-api'" in reg
+          assert 'supabase.auth.signUp' not in reg
+          assert 'emergency_contact' in reg
+          assert 'id="username"' in customer and "p.username||'—'" in customer
+          assert 'cloudflare-registration-alignment.js' not in build and 'vmc-registration-wizard.js' not in build and 'vmc-production-customer-fixes.js' not in build
+          print('Registration consolidation validation passed.')
           PY
-      - name: Commit
+      - name: Commit consolidation
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
+          git add -A
           git diff --cached --quiet && exit 0
-          git commit -m 'Complete authorized registration data handoff'
+          git commit -m 'Consolidate VMC registration into one service'
           git push

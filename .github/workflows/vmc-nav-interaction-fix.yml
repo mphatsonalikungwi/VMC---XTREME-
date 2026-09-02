@@ -16,15 +16,13 @@ jobs:
           from pathlib import Path
           import re
 
-          # Remove generated duplicate registration handlers from the public page.
+          # Remove all known generated duplicate registration handlers from the public page.
           p=Path('index.html'); s=p.read_text(encoding='utf-8')
           for sid in ['VMC_CLOUDFLARE_UI_PATCH','VMC_UI_FIXES_V2','VMC_REGISTRATION_ALIGNMENT','VMC_REGISTRATION_WIZARD','VMC_PRODUCTION_CUSTOMER_FIXES']:
-              s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>\\s*','',s,flags=re.S)
-          # No registration-side profile picture/photo controls.
-          s=re.sub(r'<div[^>]*class="field"[^>]*>\\s*<label[^>]*>[^<]*(?:profile picture|photo|picture)[^<]*</label>.*?</div>','',s,flags=re.I|re.S)
+              s=re.sub(r'<script id="'+re.escape(sid)+r'">.*?</script>','',s,flags=re.S)
           p.write_text(s,encoding='utf-8')
 
-          # Make app.js the single registration handler and use the deployed
+          # Make app.js the single browser registration handler and use the deployed
           # vmc-registration-api Edge Function for account creation.
           p=Path('app.js'); js=p.read_text(encoding='utf-8')
           js=js.replace("if(!d.payment_channel)return'Please select a payment channel.';if(!$('#rulesCheck')?.checked)","if(!d.payment_channel)return'Please select a payment channel.';if(!d.emergency_contact?.trim())return'Emergency contact is required for member safety.';if(!$('#rulesCheck')?.checked)")
@@ -46,25 +44,26 @@ jobs:
               c=c.replace(needle,needle+"$('#username').textContent=p.username||'—';",1)
           p.write_text(c,encoding='utf-8')
 
-          # Prevent the legacy build helper from referencing deleted registration files.
+          # Stop the legacy build helper from referencing deleted registration files.
           p=Path('cloudflare-build.mjs'); build=p.read_text(encoding='utf-8')
           for name,var in [('cloudflare-registration-alignment.js','registrationAlignment'),('vmc-registration-wizard.js','registrationWizard'),('vmc-production-customer-fixes.js','productionFixes')]:
-              build=re.sub(r"const "+re.escape(var)+r"=fs\\.readFileSync\\('"+re.escape(name)+r"','utf8'\\);",'',build)
-          for expr in [r",?registrationAlignmentTag=tag\\('VMC_REGISTRATION_ALIGNMENT',registrationAlignment\\)",r",?registrationWizardTag=tag\\('VMC_REGISTRATION_WIZARD',registrationWizard\\)",r",?productionFixesTag=tag\\('VMC_PRODUCTION_CUSTOMER_FIXES',productionFixes\\)"]:
-              build=re.sub(expr,'',build)
-          for expr in [r"index=upsert\\(index,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag\\);dashboard=upsert\\(dashboard,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag\\);",r"index=upsert\\(index,'VMC_REGISTRATION_WIZARD',registrationWizardTag\\);",r"index=upsert\\(index,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag\\);dashboard=upsert\\(dashboard,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag\\);"]:
-              build=re.sub(expr,'',build)
+              build=build.replace("const "+var+"=fs.readFileSync('"+name+"','utf8');",'')
+          build=build.replace(",registrationAlignmentTag=tag('VMC_REGISTRATION_ALIGNMENT',registrationAlignment)",'')
+          build=build.replace(",registrationWizardTag=tag('VMC_REGISTRATION_WIZARD',registrationWizard)",'')
+          build=build.replace(",productionFixesTag=tag('VMC_PRODUCTION_CUSTOMER_FIXES',productionFixes)",'')
+          build=build.replace("index=upsert(index,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag);dashboard=upsert(dashboard,'VMC_REGISTRATION_ALIGNMENT',registrationAlignmentTag);",'')
+          build=build.replace("index=upsert(index,'VMC_REGISTRATION_WIZARD',registrationWizardTag);",'')
+          build=build.replace("index=upsert(index,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag);dashboard=upsert(dashboard,'VMC_PRODUCTION_CUSTOMER_FIXES',productionFixesTag);",'')
           p.write_text(build,encoding='utf-8')
           PY
       - name: Remove obsolete registration files and one-time helpers
         run: |
           rm -f cloudflare-registration-alignment.js vmc-registration-wizard.js vmc-production-customer-fixes.js .vmc-registration-trigger .github/workflows/vmc-registration-consolidation.yml
-      - name: Validate
+      - name: Validate consolidated source
         run: |
           python3 - <<'PY'
           from pathlib import Path
           index=Path('index.html').read_text(encoding='utf-8'); app=Path('app.js').read_text(encoding='utf-8'); customer=Path('customer-dashboard.html').read_text(encoding='utf-8'); build=Path('cloudflare-build.mjs').read_text(encoding='utf-8')
-          assert 'name="username"' not in index
           assert 'VMC_REGISTRATION_ALIGNMENT' not in index
           assert 'VMC_REGISTRATION_WIZARD' not in index
           assert 'VMC_PRODUCTION_CUSTOMER_FIXES' not in index

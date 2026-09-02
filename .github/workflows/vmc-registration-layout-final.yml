@@ -9,51 +9,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Apply registration layout
+        env:
+          INSERT_B64: ZnVuY3Rpb24gdm1jSW1wcm92ZVJlZ2lzdHJhdGlvbkxheW91dCgpewppZihkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgndm1jUmVnaXN0cmF0aW9uQ29tcGFjdFN0eWxlcycpKXJldHVybjsKY29uc3Qgc3Q9ZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnc3R5bGUnKTtzdC5pZD0ndm1jUmVnaXN0cmF0aW9uQ29tcGFjdFN0eWxlcyc7c3QudGV4dENvbnRlbnQ9YApAbWVkaWEobWluLXdpZHRoOjc2MXB4KXsKI3JlZ2lzdGVyVmlldyAudm1jLXJlZ2lzdHJhdGlvbi1ib2R5e2Rpc3BsYXk6YmxvY2shaW1wb3J0YW50fQojcmVnaXN0ZXJWaWV3IC52bWMtcmVnaXN0cmF0aW9uLWJvZHkgLnZtYy1zdGVwLmFjdGl2ZXtkaXNwbGF5OmdyaWQhaW1wb3J0YW50O2dyaWQtdGVtcGxhdGUtY29sdW1uczptaW5tYXgoMCwxZnIpIG1pbm1heCgwLDFmcikhaW1wb3J0YW50O2dhcDoxNHB4IDE4cHghaW1wb3J0YW50O2FsaWduLWl0ZW1zOnN0YXJ0fQojcmVnaXN0ZXJWaWV3IC52bWMtcmVnaXN0cmF0aW9uLWJvZHkgLnZtYy1zdGVwLmFjdGl2ZT4udm1jLXNlY3Rpb24sCiNyZWdpc3RlclZpZXcgLnZtYy1yZWdpc3RyYXRpb24tYm9keSAudm1jLXN0ZXAuYWN0aXZlPi52bWMtZm9ybS1zZWN0aW9uLAojcmVnaXN0ZXJWaWV3IC52bWMtcmVnaXN0cmF0aW9uLWJvZHkgLnZtYy1zdGVwLmFjdGl2ZT4udm1jLWFjdGlvbnMsCiNyZWdpc3RlclZpZXcgLnZtYy1yZWdpc3RyYXRpb24tYm9keSAudm1jLXN0ZXAuYWN0aXZlPi5mb3JtLWVycm9ye2dyaWQtY29sdW1uOjEvLTF9CiNyZWdpc3RlclZpZXcgLnZtYy1yZWdpc3RyYXRpb24tYm9keSAudm1jLXN0ZXAuYWN0aXZlIC5maWVsZHttYXJnaW46MCFpbXBvcnRhbnR9Cn0KQG1lZGlhKG1heC13aWR0aDo3NjBweCl7I3JlZ2lzdGVyVmlldyAudm1jLXJlZ2lzdHJhdGlvbi1ib2R5IC52bWMtc3RlcC5hY3RpdmV7ZGlzcGxheTpibG9jayFpbXBvcnRhbnR9fQojcmVnaXN0ZXJWaWV3IC52bWMtc3RlcFtkYXRhLXN0ZXA9IjEiXSBsYWJlbDo6YWZ0ZXJ7Y29udGVudDonIConO2NvbG9yOiNlZjIzM2M7Zm9udC13ZWlnaHQ6OTAwfQojcmVnaXN0ZXJWaWV3IC52bWMtc3RlcFtkYXRhLXN0ZXA9IjEiXSBpbnB1dDpub3QoW3R5cGU9ImNoZWNrYm94Il0pLCNyZWdpc3RlclZpZXcgLnZtYy1zdGVwW2RhdGEtc3RlcD0iMSJdIHNlbGVjdHt3aWR0aDoxMDAlfQpgO2RvY3VtZW50LmhlYWQuYXBwZW5kQ2hpbGQoc3QpOwp9
         run: |
           python3 - <<'PY'
+          import base64
           from pathlib import Path
           p=Path('app.js')
           s=p.read_text()
-          marker="function setupRegistrationWizard()"
+          marker='function setupRegistrationWizard()'
           assert marker in s, 'registration wizard function not found'
-          insert=r'''function vmcImproveRegistrationLayout(){
-            if(document.getElementById('vmcRegistrationCompactStyles'))return;
-            const st=document.createElement('style');st.id='vmcRegistrationCompactStyles';st.textContent=`
-              @media(min-width:761px){
-                #registerView .vmc-registration-body{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:18px!important;align-items:start!important}
-                #registerView .vmc-registration-body>*{min-width:0}
-                #registerView .vmc-registration-body .vmc-welcome{grid-column:1/-1}
-                #registerView .vmc-registration-body .vmc-progress{grid-column:1/-1}
-                #registerView .vmc-registration-body .vmc-selected-plan{grid-column:1/-1}
-                #registerView .vmc-registration-body .vmc-step{grid-column:1/-1}
-                #registerView .vmc-registration-body .vmc-step.active{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start}
-                #registerView .vmc-registration-body .vmc-step.active>.vmc-section,
-                #registerView .vmc-registration-body .vmc-step.active>.vmc-form-section,
-                #registerView .vmc-registration-body .vmc-step.active>.vmc-actions,
-                #registerView .vmc-registration-body .vmc-step.active>.form-error{grid-column:1/-1}
-                #registerView .vmc-registration-body .vmc-step.active .field{margin:0!important}
-              }
-              @media(max-width:760px){#registerView .vmc-registration-body .vmc-step.active{display:block!important}}
-              #registerView .vmc-step[data-step="1"] label::after{content:' *';color:#ef233c;font-weight:900}
-              #registerView .vmc-step[data-step="1"] input:not([type="checkbox"]),#registerView .vmc-step[data-step="1"] select{width:100%}
-            `;document.head.appendChild(st);
-          }
-          s=s.replace(marker, "vmcImproveRegistrationLayout();"+marker, 1)
+          insert=base64.b64decode(__import__('os').environ['INSERT_B64']).decode()
+          assert 'vmcRegistrationCompactStyles' not in s, 'layout patch already present'
+          s=s.replace(marker,insert+marker,1)
           p.write_text(s)
           PY
       - name: Verify
         run: |
-          grep -q "vmcImproveRegistrationLayout" app.js
-          grep -q "grid-template-columns:minmax(0,1fr) minmax(0,1fr)" app.js
-          grep -q "data-step=\"1\".*content:' *'" app.js || true
+          grep -q 'vmcImproveRegistrationLayout' app.js
+          grep -q 'grid-template-columns:minmax(0,1fr) minmax(0,1fr)' app.js
       - name: Commit and remove workflow
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app.js
-          git commit -m 'fix: compact two-page registration layout' || true
+          git commit -m 'fix: compact two-page registration layout'
           git push
           rm .github/workflows/vmc-registration-layout-final.yml
           git add .github/workflows/vmc-registration-layout-final.yml
-          git commit -m 'chore: remove temporary registration layout workflow' || true
+          git commit -m 'chore: remove temporary registration layout workflow'
           git push

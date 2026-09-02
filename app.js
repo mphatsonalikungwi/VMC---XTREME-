@@ -103,4 +103,27 @@ window.vmcOpenModal=openModal;window.vmcCloseModal=closeModal;window.vmcShowRegi
 })();
 
 /* VMC FINAL REGISTRATION LAYOUT */
-(()=>{const apply=()=>{if(document.getElementById('vmcFinalRegistrationLayout'))return;const st=document.createElement('style');st.id='vmcFinalRegistrationLayout';st.textContent="#registerView .vmc-reg-step#vmcRegStep1:not([hidden]),#registerView .vmc-reg-step#vmcRegStep2:not([hidden]){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start!important}#registerView .vmc-reg-step#vmcRegStep1>*:not(.field),#registerView .vmc-reg-step#vmcRegStep2>*:not(.field){grid-column:1/-1!important}#registerView .vmc-reg-step#vmcRegStep1 .field,#registerView .vmc-reg-step#vmcRegStep2 .field{min-width:0!important;margin:0!important}#registerView .vmc-reg-step#vmcRegStep1 .field input,#registerView .vmc-reg-step#vmcRegStep1 .field select,#registerView .vmc-reg-step#vmcRegStep2 .field input,#registerView .vmc-reg-step#vmcRegStep2 .field select{width:100%!important;box-sizing:border-box!important}#registerView .vmc-reg-step#vmcRegStep1 .field label::after{content:' *';color:#ef233c;font-weight:900}#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-rules::after{content:' *';color:#ef233c;font-weight:900;margin-left:2px}#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:12px 16px!important}#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>h4,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-section-copy{grid-column:1/-1!important}";document.head.appendChild(st)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply()})();
+(()=>{const apply=()=>{if(document.getElementById('vmcFinalRegistrationLayout'))return;const st=document.createElement('style');st.id='vmcFinalRegistrationLayout';st.textContent=`
+#registerView .vmc-reg-step:not([hidden]){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:14px 18px!important;align-items:start!important;width:100%!important}
+#registerView .vmc-reg-step>*{min-width:0!important}
+#registerView .vmc-reg-step>.vmc-reg-welcome,#registerView .vmc-reg-step>.selected-plan,#registerView .vmc-reg-step>.vmc-reg-section,#registerView .vmc-reg-step>.vmc-reg-rules,#registerView .vmc-reg-step>.vmc-reg-actions,#registerView .vmc-reg-step>.vmc-reg-skip,#registerView .vmc-reg-step>.vmc-reg-optional-intro{grid-column:1/-1!important}
+#registerView .vmc-reg-step>.field{grid-column:span 1!important;margin:0!important;min-width:0!important}
+#registerView .vmc-reg-step .field input,#registerView .vmc-reg-step .field select{width:100%!important;box-sizing:border-box!important;min-width:0!important}
+#registerView .vmc-reg-step .field label::after{content:' *';color:#ef233c;font-weight:900}
+#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:12px 16px!important;width:100%!important}
+#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>h4,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-section-copy{grid-column:1/-1!important}
+#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.field,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-price{grid-column:span 1!important}
+#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership>.vmc-reg-price{align-self:end!important;margin:0!important}
+#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:10px 16px!important}
+#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership)>h4,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership)>.vmc-reg-section-copy{grid-column:1/-1!important}
+#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-rules{justify-content:flex-start!important}
+#registerView .vmc-reg-actions{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:10px!important;align-items:center!important}
+#registerView .vmc-reg-actions .btn{width:100%!important;min-width:0!important}
+#registerView .vmc-reg-skip{width:100%!important}
+@media(max-width:760px){
+  #registerView .vmc-reg-step:not([hidden]),#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-membership,#registerView .vmc-reg-step#vmcRegStep1 .vmc-reg-section:not(.vmc-reg-membership),#registerView .vmc-reg-actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+  #registerView .vmc-reg-step .vmc-reg-welcome h3,#registerView .vmc-reg-step .vmc-reg-optional-intro h3{font-size:1.12rem}
+  #registerView .vmc-reg-actions{display:grid!important;flex-direction:initial!important}
+  #registerView .vmc-reg-actions .btn{width:100%!important}
+}`;
+document.head.appendChild(st)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply()})();

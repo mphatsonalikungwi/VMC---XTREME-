@@ -12,8 +12,13 @@ function json(body,status){
   return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 }
 
+export async function onRequestGet(context){
+  if(!allowedRequest(context.request))return json({error:'Origin not allowed.'},403);
+  return json({ok:true,service:'vmc-registration-proxy'},200);
+}
+
 export async function onRequestOptions(context){
-  return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':context.request.headers.get('Origin')||'*','Access-Control-Allow-Methods':'POST,OPTIONS','Access-Control-Allow-Headers':'content-type','Cache-Control':'no-store'}});
+  return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':context.request.headers.get('Origin')||'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type','Cache-Control':'no-store'}});
 }
 
 export async function onRequestPost(context){

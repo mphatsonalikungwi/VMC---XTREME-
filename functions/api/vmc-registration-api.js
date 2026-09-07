@@ -14,7 +14,13 @@ function json(body,status){
 
 export async function onRequestGet(context){
   if(!allowedRequest(context.request))return json({error:'Origin not allowed.'},403);
-  return json({ok:true,service:'vmc-registration-proxy'},200);
+  try{
+    const upstream=await fetch(SUPABASE_FUNCTION_URL,{method:'OPTIONS',headers:{'apikey':SUPABASE_PUBLISHABLE_KEY,'Origin':'https://vmcxtreme.pages.dev','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'apikey,content-type'}});
+    return json({ok:true,service:'vmc-registration-proxy',upstream_status:upstream.status,upstream_ok:upstream.ok},200);
+  }catch(error){
+    console.error('VMC registration proxy upstream health check error:',error);
+    return json({ok:true,service:'vmc-registration-proxy',upstream_status:null,upstream_ok:false,upstream_error:'Unable to reach Supabase registration service.'},200);
+  }
 }
 
 export async function onRequestOptions(context){

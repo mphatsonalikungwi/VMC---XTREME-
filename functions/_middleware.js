@@ -1,57 +1,22 @@
 export async function onRequest(context){
   const response=await context.next();
   const url=new URL(context.request.url);
-  if(url.pathname.startsWith('/api/'))return response;
+  if(url.pathname!=='/app.js')return response;
   const contentType=response.headers.get('content-type')||'';
-  if(!contentType.includes('text/html'))return response;
+  if(!contentType.includes('javascript')&&!contentType.includes('text/plain'))return response;
 
-  const html=await response.text();
-  const patch=`<script id="VMC_STAGING_REGISTRATION_FLOW_FIX">
-(()=>{
-  'use strict';
-  const originalFetch=window.fetch.bind(window);
-  const registrationPath='/functions/v1/vmc-registration-api';
-  const proxyPath='/api/vmc-registration-api';
-  window.__vmcGeneratedUsername='';
+  let js=await response.text();
 
-  window.fetch=async function(input,init){
-    try{
-      const requestUrl=new URL(typeof input==='string'?input:input?.url||'',location.href);
-      if(requestUrl.pathname===registrationPath){
-        const proxyUrl=new URL(proxyPath,location.origin);
-        const response=await originalFetch(proxyUrl.toString(),init);
-        response.clone().json().then(data=>{
-          if(data?.username)window.__vmcGeneratedUsername=String(data.username);
-          window.dispatchEvent(new CustomEvent('vmc-registration-response',{detail:data}));
-        }).catch(()=>{});
-        return response;
-      }
-    }catch(e){}
-    return originalFetch(input,init);
-  };
+  const oldInvoke="const {data,error}=await supabase.functions.invoke('vmc-registration-api',{body:payload});";
+  const newInvoke="const registrationResponse=await fetch('/api/vmc-registration-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await registrationResponse.json();const error=registrationResponse.ok?null:new Error(data?.error||'Registration failed.');";
+  js=js.replace(oldInvoke,newInvoke);
 
-  const showUsername=()=>{
-    const username=String(window.__vmcGeneratedUsername||'').trim();
-    const view=document.getElementById('successView');
-    if(!username||!view||view.hidden||view.dataset.vmcUsernameShown==='1')return;
-    const grid=view.querySelector('.account-grid');
-    if(!grid)return;
-    const item=document.createElement('div');
-    item.innerHTML='<small>VMC Username</small><strong></strong>';
-    item.querySelector('strong').textContent=username;
-    grid.insertBefore(item,grid.firstElementChild);
-    view.dataset.vmcUsernameShown='1';
-  };
+  const oldMember="<div><small>Member</small><strong>${esc(profile?.full_name||'VMC Member')}</strong></div>";
+  const newMember="<div><small>Member</small><strong>${esc(profile?.full_name||'VMC Member')}</strong></div><div><small>VMC Username</small><strong>${esc(profile?.username||'Not available')}</strong></div>";
+  js=js.replace(oldMember,newMember);
 
-  window.addEventListener('vmc-registration-response',showUsername);
-  new MutationObserver(showUsername).observe(document.documentElement,{childList:true,subtree:true});
-  document.addEventListener('DOMContentLoaded',showUsername,{once:true});
-})();
-</script>`;
-
-  return new Response(html.replace('</head>',patch+'</head>'),{
-    status:response.status,
-    statusText:response.statusText,
-    headers:response.headers
-  });
+  const headers=new Headers(response.headers);
+  headers.delete('content-length');
+  headers.set('cache-control','no-store');
+  return new Response(js,{status:response.status,statusText:response.statusText,headers});
 }

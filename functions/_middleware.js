@@ -15,6 +15,10 @@ export async function onRequest(context){
   const newMember="<div><small>Member</small><strong>${esc(profile?.full_name||'VMC Member')}</strong></div><div><small>VMC Username</small><strong>${esc(profile?.username||'Not available')}</strong></div>";
   js=js.replace(oldMember,newMember);
 
+  const oldLogin="</div></div><div class=\"form-actions\"><button class=\"btn btn-red\" type=\"button\" id=\"successLogin\">My VMC Account";
+  const newLogin="</div></div><div class=\"login-instructions\" style=\"margin-top:16px;padding:14px 16px;border:1px solid rgba(255,255,255,.12);border-radius:12px\"><strong>How to log in</strong><p style=\"margin:8px 0 0\">You can log in using your VMC username, registered phone number, or the email address you provided during registration, together with your password.</p></div><div class=\"form-actions\"><button class=\"btn btn-red\" type=\"button\" id=\"successLogin\">My VMC Account";
+  js=js.replace(oldLogin,newLogin);
+
   const headers=new Headers(response.headers);
   headers.delete('content-length');
   headers.set('cache-control','no-store');

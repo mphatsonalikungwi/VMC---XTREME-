@@ -1,5 +1,15 @@
 (()=>{'use strict';
-// Surgical member-portal hierarchy + membership summary fix. No auth or renewal logic is changed.
+// Surgical member-portal hierarchy + membership summary + renewal form fix. No auth or renewal API logic is changed.
+const syncRenewalUnit=()=>{
+  const tier=document.querySelector('#tier'),unit=document.querySelector('#unit');
+  if(!tier||!unit)return;
+  const units={'Per Day':'day','Per Week':'week','Per Month':'month'};
+  const sync=()=>{unit.value=units[tier.value]||'month'};
+  unit.hidden=true;
+  unit.setAttribute('aria-hidden','true');
+  sync();
+  if(!tier.dataset.vmcUnitSync){tier.addEventListener('change',sync);tier.dataset.vmcUnitSync='1'}
+};
 const fillMembershipSummary=async()=>{
   const card=[...document.querySelectorAll('.layout>.card')].find(el=>el.querySelector(':scope > .title h2')?.textContent.trim()==='Your Membership');
   if(!card||typeof window.supabase==='undefined')return;
@@ -27,6 +37,7 @@ const apply=()=>{
     return heading&&heading.textContent.trim()==='Your VMC Journey';
   });
   if(duplicate)duplicate.remove();
+  syncRenewalUnit();
   fillMembershipSummary();
 };
 const style=document.createElement('style');

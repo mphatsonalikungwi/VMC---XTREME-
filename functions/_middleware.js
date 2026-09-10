@@ -16,7 +16,7 @@ export async function onRequest(context){
   js=js.replace(oldMember,newMember);
 
   const copyUsername="const copyUsernameButton=$('#successCopyUsername');copyUsernameButton?.addEventListener('click',async()=>{const username=String(profile?.username||'').trim();if(!username)return;try{await navigator.clipboard.writeText(username);copyUsernameButton.textContent='Copied';setTimeout(()=>{copyUsernameButton.textContent='Copy username'},1600)}catch(error){copyUsernameButton.textContent='Copy failed';setTimeout(()=>{copyUsernameButton.textContent='Copy username'},1600)}});";
-  if(!js.includes('successCopyUsername')){
+  if(!js.includes("const copyUsernameButton=$('#successCopyUsername')")){
     const marker="$('#successLogin')?.addEventListener('click',()=>showLogin('member'));";
     js=js.replace(marker,marker+copyUsername);
   }

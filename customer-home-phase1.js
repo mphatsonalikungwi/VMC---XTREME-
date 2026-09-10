@@ -1,10 +1,11 @@
 (()=>{'use strict';
 const mount=async()=>{
-  if(document.getElementById('vmcPhase1Summary')||!window.vmcMemberClient)return;
+  if(document.getElementById('vmcPhase1Summary')||!window.supabase)return;
   try{
-    const {data:{user}}=await window.vmcMemberClient.auth.getUser();
+    const client=window.supabase.createClient('https://czdxwlioouuredaliplw.supabase.co','sb_publishable_-ldpCiaxCElX9c7Q6zLqqQ_gHUBunBI',{auth:{persistSession:true,autoRefreshToken:true}});
+    const {data:{user}}=await client.auth.getUser();
     if(!user)return;
-    const {data:p,error}=await window.vmcMemberClient.from('profiles').select('membership_start_date,membership_expiry_date,payment_status,account_status').eq('id',user.id).maybeSingle();
+    const {data:p,error}=await client.from('profiles').select('membership_start_date,membership_expiry_date,payment_status,account_status').eq('id',user.id).maybeSingle();
     if(error||!p)return;
     const payment=String(p.payment_status||'').trim().toLowerCase();
     const account=String(p.account_status||'').trim().toLowerCase();

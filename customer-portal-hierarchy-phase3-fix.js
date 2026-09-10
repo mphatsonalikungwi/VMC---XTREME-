@@ -1,14 +1,13 @@
 (()=>{'use strict';
-// Surgical Phase 3 hierarchy fix. Removes the legacy duplicate membership card and keeps member sections in the intended order.
+// Surgical Phase 3 hierarchy fix. Removes legacy duplicate cards and keeps member sections in the intended order.
 const normalize=()=>{
   const layout=document.querySelector('.layout');
   if(!layout)return;
-  const duplicate=[...layout.children].find(el=>{
-    if(!(el instanceof HTMLElement)||el.id==='vmcPhase1Summary'||el.id==='vmcPhase2Membership'||el.id==='vmcPhase3Payments')return false;
-    const heading=el.querySelector(':scope > .title h2');
-    return heading&&heading.textContent.trim()==='Your Membership';
+  [...layout.children].forEach(el=>{
+    if(!(el instanceof HTMLElement)||el.id==='vmcPhase1Summary'||el.id==='vmcPhase2Membership'||el.id==='vmcPhase3Payments')return;
+    const heading=el.querySelector(':scope > .title h2, :scope > h2')?.textContent.trim();
+    if(heading==='Your Membership'||heading==='Your VMC Journey')el.remove();
   });
-  if(duplicate)duplicate.remove();
   const phase1=document.getElementById('vmcPhase1Summary');
   const phase2=document.getElementById('vmcPhase2Membership');
   const phase3=document.getElementById('vmcPhase3Payments');

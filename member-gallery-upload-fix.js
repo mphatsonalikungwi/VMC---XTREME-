@@ -1,0 +1,1 @@
+console.log('VMC upload fix loaded');

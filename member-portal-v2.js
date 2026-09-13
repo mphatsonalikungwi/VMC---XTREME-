@@ -1,0 +1,1 @@
+(()=>{const boot=()=>{if(document.getElementById('vmcPortalV2'))return;const el=document.querySelector('.vmc-portal-layout');if(!el)return;el.dataset.portalReady='true'};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot()})();

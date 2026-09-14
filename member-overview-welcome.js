@@ -20,7 +20,9 @@ const boot=async()=>{
       :`Welcome to VMC Xtreme, ${first(name)}! We’re excited to have you as part of the VMC family. Your journey starts here — stay consistent, stay strong, and enjoy every step.`;
     const avatar=p.avatar_url?`<img src="${esc(p.avatar_url)}?v=${Date.now()}" alt="${esc(name)} profile picture">`:`<span>${esc(initials(name))}</span>`;
     let hero=overview.querySelector('.member-welcome');
-    if(!hero){hero=document.createElement('div');hero.className='member-welcome';overview.insertBefore(hero,overview.querySelector('.member-overview-grid')||overview.firstChild)}
+    const anchor=overview.querySelector('.member-progress')||overview.querySelector('.member-active-card')||overview.querySelector('.member-overview-grid')||overview.firstChild;
+    if(!hero){hero=document.createElement('div');hero.className='member-welcome';overview.insertBefore(hero,anchor)}
+    else if(anchor&&hero.nextElementSibling!==anchor)overview.insertBefore(hero,anchor);
     hero.innerHTML=`<div class="member-welcome-avatar">${avatar}</div><div class="member-welcome-copy"><div class="member-welcome-kicker">${previous?'WELCOME BACK':'WELCOME TO VMC XTREME'}</div><h3>${esc(welcome)}</h3><div class="member-welcome-user">@${esc(String(p.username||'').replace(/^@/,''))}</div></div>`;
   };
   try{await render()}catch(e){console.warn('Member welcome could not render',e)}

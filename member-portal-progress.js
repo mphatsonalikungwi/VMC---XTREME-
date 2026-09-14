@@ -1,0 +1,37 @@
+(()=>{'use strict';
+const boot=()=>{
+ const overview=document.getElementById('vmcProfileView');
+ if(!overview)return;
+ const progress=overview.querySelector('.member-progress');
+ if(!progress)return;
+ const grid=overview.querySelector('.member-overview-grid');
+ if(grid)overview.insertBefore(progress,grid);
+ const style=document.createElement('style');
+ style.textContent='.member-progress.healthy .member-progress-fill{background:#48c774!important}.member-progress.half .member-progress-fill{background:#f3b63f!important}.member-progress.expiring .member-progress-fill{background:#e31b2d!important}.member-progress.healthy{border-color:#275e38!important}.member-progress.half{border-color:#61491e!important}.member-progress.expiring{border-color:#5f2029!important}';
+ document.head.appendChild(style);
+ const parseDate=v=>{const d=new Date(v);return isNaN(d)?null:d};
+ const update=()=>{
+  const start=parseDate(document.getElementById('vmcStart')?.textContent.trim());
+  const expiry=parseDate(document.getElementById('vmcExpiry')?.textContent.trim());
+  const fill=document.getElementById('vmcProgressFill');
+  const label=document.getElementById('vmcProgressLabel');
+  const note=document.getElementById('vmcProgressNote');
+  if(!expiry)return;
+  const now=new Date();let elapsed=0;
+  if(start&&expiry>start)elapsed=Math.max(0,Math.min(1,(now-start)/(expiry-start)));
+  const daysLeft=Math.ceil((expiry-now)/86400000);
+  const expired=daysLeft<0;
+  const expiring=!expired&&daysLeft<=7;
+  const half=!expired&&!expiring&&elapsed>=.5;
+  progress.classList.remove('healthy','half','expiring');
+  progress.classList.add(expired||expiring?'expiring':half?'half':'healthy');
+  if(fill)fill.style.width=Math.round(elapsed*100)+'%';
+  if(label)label.textContent=expired?'EXPIRED':expiring?'ABOUT TO EXPIRE':half?'HALFWAY':'ACTIVE & HEALTHY';
+  if(note)note.textContent=expired?'Membership has expired.':expiring?`Expires in ${daysLeft} day${daysLeft===1?'':'s'}.`:`${daysLeft} day${daysLeft===1?'':'s'} remaining.`;
+ };
+ update();
+ setTimeout(update,800);
+ setTimeout(update,1800);
+};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();

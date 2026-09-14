@@ -8,16 +8,20 @@ const run=()=>{
 .member-overview-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:12px!important;align-items:stretch!important}
 .member-overview-grid>.member-panel{min-width:0}
 .member-account-card,.member-active-card{min-width:0}
-.member-active-card{display:flex;flex-direction:column;min-height:100%}
-.member-active-card .member-head{min-height:45px}
-.member-active-main{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex:1}
-.member-active-main strong{font-size:1.15rem;color:#48c774!important;letter-spacing:.01em}
-.member-active-main small{display:block;color:#777d86;text-transform:uppercase;font-size:.58rem;font-weight:900;margin-bottom:5px}
-.member-active-dot{width:10px;height:10px;border-radius:50%;background:#48c774;box-shadow:0 0 0 5px rgba(72,199,116,.10);flex:0 0 auto}
+/* Membership summary: one compact horizontal card directly below Membership Progress. */
+.member-active-card{display:flex;align-items:center;gap:18px;width:100%;margin:0 0 12px;padding:11px 14px;background:#111318;border:1px solid #292d35;border-radius:10px;box-sizing:border-box;min-height:48px}
+.member-active-card .member-head{min-height:0;padding:0!important;margin:0;display:flex;align-items:center;flex:0 0 auto}
+.member-active-card .member-head b{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:#f7f7f5;white-space:nowrap}
+.member-active-main{display:flex;align-items:center;justify-content:flex-start;gap:22px;min-width:0;flex:1;padding:0}
+.member-active-main>div{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap}
+.member-active-main small{display:inline;color:#777d86;text-transform:uppercase;font-size:.56rem;font-weight:900;letter-spacing:.04em}
+.member-active-main strong{font-size:.82rem;color:#f7f7f5!important;letter-spacing:.01em;white-space:nowrap}
+.member-active-main strong.active-value{color:#48c774!important}
+.member-active-dot{width:8px;height:8px;border-radius:50%;background:#48c774;box-shadow:0 0 0 4px rgba(72,199,116,.10);flex:0 0 auto}
 .member-status-panel{grid-column:1/-1!important}
 .member-status-panel .member-head b{color:#f7f7f5}
 .member-status-panel .member-card strong.active-value{color:#48c774!important}
-/* Desired vertical order: welcome, progress, two top cards, full-width status */
+/* Desired vertical order: welcome, progress, compact membership summary, existing two-column detail grid. */
 .member-welcome{margin-bottom:12px!important}
 .member-progress{display:block!important;width:100%!important;margin:0 0 12px!important}
 #vmcViewerProfile,#vmcViewerDelete,#vmcViewerClose{display:none!important}
@@ -26,24 +30,25 @@ const run=()=>{
 .settings-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
 .gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 .badge.g,.badge.green,.member-badge.green,.success,.active-value{color:#48c774!important}
-@media(max-width:700px){.member-overview-grid,.member-grid,.settings-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.gallery-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.member-active-main{padding:13px;gap:9px}.member-active-main strong{font-size:.95rem}}
-@media(max-width:380px){.member-overview-grid,.member-grid,.settings-grid,.gallery-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.member-card{padding:10px}.member-card strong{font-size:.76rem}}
+@media(max-width:700px){.member-overview-grid,.member-grid,.settings-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.gallery-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.member-active-card{gap:11px;padding:10px 11px}.member-active-main{gap:12px}.member-active-card .member-head b{font-size:.7rem}.member-active-main small{font-size:.5rem}.member-active-main strong{font-size:.72rem}}
+@media(max-width:380px){.member-overview-grid,.member-grid,.settings-grid,.gallery-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.member-card{padding:10px}.member-card strong{font-size:.76rem}.member-active-card{gap:8px;padding:9px 10px}.member-active-main{gap:8px}.member-active-main>div{gap:5px}.member-active-main small{font-size:.46rem}.member-active-main strong{font-size:.66rem}}
 `;
 document.head.appendChild(style);
  const panels=[...grid.querySelectorAll(':scope > .member-panel')]; if(panels.length<2)return;
  const account=panels[0],status=panels[1]; account.classList.add('member-account-card');
- /* Keep Member Account intact as the entire left card. Keep Membership as the entire right card. */
- if(!overview.querySelector('.member-active-card')){
-   const active=document.createElement('div');active.className='member-panel member-active-card';
-   active.innerHTML='<div class="member-head"><b>Membership</b><span class="member-active-dot" aria-label="Active"></span></div><div class="member-active-main"><div><small>Status</small><strong class="active-value">Active</strong></div><div><small>Plan</small><strong id="memberActivePlan">—</strong></div></div>';
-   grid.insertBefore(active,status);
-   const plan=document.getElementById('vmcPlanCard'),activePlan=document.getElementById('memberActivePlan');
-   if(plan&&activePlan){const sync=()=>activePlan.textContent=plan.textContent||'—';sync();new MutationObserver(sync).observe(plan,{childList:true,subtree:true,characterData:true})}
+ /* Membership is a standalone summary, never a child of the two-column detail grid. */
+ let active=overview.querySelector('.member-active-card');
+ if(!active){
+   active=document.createElement('div');active.className='member-panel member-active-card';
+   active.innerHTML='<div class="member-head"><b>Membership</b></div><div class="member-active-main"><div><span class="member-active-dot" aria-hidden="true"></span><small>Status</small><strong class="active-value">Active</strong></div><div><small>Plan</small><strong id="memberActivePlan">Per Month</strong></div></div>';
+   const plan=document.getElementById('vmcPlanCard'),activePlan=active.querySelector('#memberActivePlan');
+   if(plan&&activePlan){const sync=()=>activePlan.textContent=plan.textContent.trim()||'Per Month';sync();new MutationObserver(sync).observe(plan,{childList:true,subtree:true,characterData:true})}
  }
+ const progress=overview.querySelector('.member-progress');
+ if(progress)overview.insertBefore(active,grid);
+ else overview.insertBefore(active,grid);
  status.classList.add('member-status-panel');
  grid.appendChild(status);
- /* Progress must sit outside the two-card grid, directly above it. */
- const progress=overview.querySelector('.member-progress'); if(progress)overview.insertBefore(progress,grid);
  const title=overview.querySelector('.member-title h2'),subtitle=overview.querySelector('.member-title p');
  if(title)title.textContent='Member Overview';
  if(subtitle)subtitle.textContent='Everything you need to know about your membership.';

@@ -50,8 +50,6 @@ document.head.appendChild(style);
    if(plan&&activePlan){const sync=()=>activePlan.textContent=plan.textContent.trim()||'Per Month';sync();new MutationObserver(sync).observe(plan,{childList:true,subtree:true,characterData:true})}
  }
  const progress=overview.querySelector('.member-progress');
- const welcome=overview.querySelector('.member-welcome');
- if(welcome)overview.insertBefore(welcome,progress||active||grid);
  if(progress)overview.insertBefore(progress,active||grid);
  overview.insertBefore(active,grid);
  status.classList.add('member-status-panel');

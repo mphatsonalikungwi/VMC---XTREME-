@@ -22,3 +22,70 @@ const boot=()=>{
 };
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+
+(()=>{'use strict';
+const applySettingsStyle=()=>{
+ const settings=document.getElementById('vmcSettingsView');if(!settings)return;
+ let style=document.getElementById('vmc-member-settings-admin-style');
+ if(!style){style=document.createElement('style');style.id='vmc-member-settings-admin-style';document.head.appendChild(style)}
+ style.textContent=`
+ body.vmc-settings-admin{background:#090a0c!important;color:#f7f7f5!important}
+ body.vmc-settings-admin .top{background:#090a0c!important;color:#f7f7f5!important;border-bottom-color:#292d34!important}
+ body.vmc-settings-admin .content{background:#090a0c!important;color:#f7f7f5!important}
+ body.vmc-settings-admin .brand img{filter:none}
+ body.vmc-settings-admin .vmc-settings-shell{display:block}
+ .vmc-settings-top{margin-bottom:14px}
+ .vmc-settings-kicker{color:#e31b2d;font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
+ .vmc-settings-title{margin:8px 0 4px;font-size:30px;line-height:1.05;letter-spacing:-.04em}
+ .vmc-settings-subtitle{margin:0;color:#8e949c;font-size:13px}
+ .vmc-settings-panel{border:1px solid #292d34;background:#111317;border-radius:12px;padding:18px;margin-bottom:12px}
+ .vmc-settings-panel h3{margin:0 0 4px;font-size:15px;text-transform:uppercase;letter-spacing:.04em}
+ .vmc-settings-panel>p{margin:0;color:#777d86;font-size:12px}
+ .vmc-settings-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #24272d}
+ .vmc-settings-row:last-child{border-bottom:0;padding-bottom:0}
+ .vmc-settings-row:first-of-type{margin-top:10px}
+ .vmc-settings-label{font-weight:800;font-size:13px}.vmc-settings-help{display:block;color:#777d86;font-size:11px;margin-top:3px}
+ .vmc-settings-value{font-weight:850;text-align:right;white-space:nowrap}.vmc-settings-pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#12301d;border:1px solid #285d38;color:#9be7b4;font-size:10px;font-weight:900}
+ .vmc-settings-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+ .vmc-settings-action{border:1px solid #3a3e45;border-radius:7px;padding:9px 12px;background:#17191e;color:#fff;font:inherit;font-weight:850;cursor:pointer}
+ .vmc-settings-action:hover{background:#202329}
+ .vmc-member-account-box{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+ .vmc-member-account-box .vmc-setting-box{border:1px solid #292d34;background:#17191e;border-radius:9px;padding:13px}
+ .vmc-member-account-box h4{margin:0 0 5px;font-size:13px}.vmc-member-account-box p{margin:0;color:#8e949c;font-size:11px}
+ .vmc-settings-panel .field{margin-top:13px}.vmc-settings-panel .field label{color:#aeb2b9}.vmc-settings-panel .field input{background:#0b0c0f!important;color:#fff!important;border-color:#33373e!important;border-radius:7px!important}
+ .vmc-settings-panel .btn{background:#e31b2d!important;color:#fff!important;border:0!important;border-radius:7px!important}
+ @media(max-width:700px){.vmc-settings-title{font-size:28px}.vmc-settings-panel{padding:15px}.vmc-settings-row{align-items:flex-start}.vmc-settings-value{white-space:normal}.vmc-member-account-box{grid-template-columns:1fr}}
+ `;
+ if(!settings.querySelector('.vmc-settings-shell')){
+   const original=settings.querySelector('.card');if(!original)return;
+   const shell=document.createElement('div');shell.className='vmc-settings-shell';
+   shell.innerHTML=`<div class="vmc-settings-top"><div class="vmc-settings-kicker">VMC SETTINGS</div><h1 class="vmc-settings-title">Settings</h1><p class="vmc-settings-subtitle">Manage your VMC account and membership information in one place.</p></div>
+   <section class="vmc-settings-panel"><h3>Business Profile</h3><p>Your VMC membership environment.</p>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Business</span><span class="vmc-settings-help">Gym account</span></div><div class="vmc-settings-value">VMC Xtreme Fitness</div></div>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Location</span><span class="vmc-settings-help">Registered operating location</span></div><div class="vmc-settings-value">Chilinde 1</div></div>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">System</span><span class="vmc-settings-help">VMC member portal</span></div><div class="vmc-settings-value"><span class="vmc-settings-pill">ONLINE</span></div></div>
+   </section>
+   <section class="vmc-settings-panel"><h3>Account Access</h3><p>Your member account is separate from management accounts.</p>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Signed-in account</span><span class="vmc-settings-help">Your current VMC member account</span></div><div class="vmc-settings-value" id="vmcSettingsSignedIn">Member</div></div>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Your role</span><span class="vmc-settings-help">Access level for this account</span></div><div class="vmc-settings-value"><span class="vmc-settings-pill">MEMBER</span></div></div>
+    <div class="vmc-settings-actions"><button type="button" class="vmc-settings-action" id="vmcSettingsRefresh">Refresh</button></div>
+   </section>
+   <section class="vmc-settings-panel"><h3>Access</h3><p>What you can access depends on your member account.</p>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Customer records</span><span class="vmc-settings-help">Your own membership information</span></div><div class="vmc-settings-value"><span class="vmc-settings-pill">YOUR ACCOUNT</span></div></div>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Payment approvals</span><span class="vmc-settings-help">Management-only payment verification</span></div><div class="vmc-settings-value"><span class="vmc-settings-pill" style="background:#301116;border-color:#5f2029;color:#ff9aa3">NOT AVAILABLE</span></div></div>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Team management</span><span class="vmc-settings-help">Management-only staff controls</span></div><div class="vmc-settings-value"><span class="vmc-settings-pill" style="background:#301116;border-color:#5f2029;color:#ff9aa3">NOT AVAILABLE</span></div></div>
+   </section>
+   <section class="vmc-settings-panel"><h3>Preferences</h3><p>Business settings and account information.</p>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Business records</span><span class="vmc-settings-help">Your VMC membership records</span></div><div class="vmc-settings-value">VMC Records</div></div>
+    <div class="vmc-settings-row"><div><span class="vmc-settings-label">Sign-in</span><span class="vmc-settings-help">Current authentication session</span></div><div class="vmc-settings-value"><span class="vmc-settings-pill">ACTIVE</span></div></div>
+   </section>`;
+   original.parentNode.insertBefore(shell,original);original.style.display='block';original.style.marginTop='12px';
+   const title=original.querySelector('h2');if(title)title.style.display='none';
+   const para=original.querySelector('p');if(para)para.style.display='none';
+   const signed=shell.querySelector('#vmcSettingsSignedIn');const name=()=>document.getElementById('vmcName')?.textContent?.trim()||'Member';if(signed)signed.textContent=name();
+   shell.querySelector('#vmcSettingsRefresh')?.addEventListener('click',()=>{location.reload()});
+ }
+};
+const sync=()=>{const settings=document.getElementById('vmcSettingsView');if(!settings)return;const active=settings.classList.contains('vmc-view-active')||settings.classList.contains('active')||settings.style.display==='block';document.body.classList.toggle('vmc-settings-admin',active);if(active)applySettingsStyle()};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(sync,0);setInterval(sync,500)});else{setTimeout(sync,0);setInterval(sync,500)}
+})();

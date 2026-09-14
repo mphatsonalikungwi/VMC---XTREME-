@@ -1,12 +1,12 @@
 (()=>{'use strict';
 const boot=()=>{
-  if(window.__VMC_MEMBER_OVERVIEW_PRIORITY_V3)return;
+  if(window.__VMC_MEMBER_OVERVIEW_PRIORITY_V4)return;
   const overview=document.getElementById('vmcProfileView');
   const layout=overview?.querySelector('.member-overview-grid');
   if(!overview||!layout)return;
-  window.__VMC_MEMBER_OVERVIEW_PRIORITY_V3=true;
+  window.__VMC_MEMBER_OVERVIEW_PRIORITY_V4=true;
   const style=document.createElement('style');
-  style.id='VMC_MEMBER_OVERVIEW_PRIORITY_STYLE_V3';
+  style.id='VMC_MEMBER_OVERVIEW_PRIORITY_STYLE_V4';
   style.textContent=`
     #vmcProfileView .member-overview-grid{display:block!important;margin-bottom:0}
     #vmcProfileView .member-overview-grid>.member-panel{display:block!important;width:100%!important;margin-bottom:12px!important}
@@ -18,39 +18,50 @@ const boot=()=>{
     @media(max-width:520px){#vmcProfileView .vmc-profile-moved{gap:12px;padding:12px!important}#vmcProfileView .vmc-profile-moved img{width:72px;height:72px;flex-basis:72px}}
   `;
   document.head.appendChild(style);
-  const panels=[...layout.querySelectorAll(':scope > .member-panel')];
-  const accountPanel=panels[0];
-  const detailsPanel=panels[1];
-  if(!accountPanel||!detailsPanel)return;
-  const progress=detailsPanel.querySelector(':scope > .member-progress');
-  if(progress)layout.insertBefore(progress,accountPanel);
+  const panels=()=>[...layout.querySelectorAll(':scope > .member-panel')];
+  const exact=(root,text)=>[...root.querySelectorAll('*')].filter(n=>(n.textContent||'').trim().toLowerCase()===text.toLowerCase());
   const profileMatch=el=>{
     if(!el||el===overview||el===layout)return false;
     const text=(el.textContent||'').trim();
-    return /welcome back/i.test(text)&&/@[a-z0-9_]+/i.test(text)&&!!el.querySelector('img')&&text.length<900;
+    return /welcome back/i.test(text)&&/@[a-z0-9_]+/i.test(text)&&!!el.querySelector('img')&&text.length<1000;
   };
-  let profile=null;
-  const matches=[...overview.querySelectorAll('*')].filter(profileMatch);
-  for(const node of matches){
-    if(node.parentElement&&profileMatch(node.parentElement))continue;
-    profile=node;
-    break;
-  }
-  if(profile){
-    let card=profile;
-    while(card.parentElement&&card.parentElement!==overview&&card.parentElement!==layout&&card.parentElement!==detailsPanel)card=card.parentElement;
-    if(card!==progress){
-      card.classList.add('vmc-profile-moved');
-      layout.insertBefore(card,layout.firstElementChild);
+  const normalize=()=>{
+    const currentPanels=panels();
+    const accountPanel=currentPanels[0];
+    const detailsPanel=currentPanels[1];
+    if(!accountPanel||!detailsPanel)return;
+    const progress=detailsPanel.querySelector(':scope > .member-progress');
+    if(progress)layout.insertBefore(progress,accountPanel);
+
+    const matches=[...overview.querySelectorAll('*')].filter(profileMatch);
+    let profile=null;
+    for(const node of matches){
+      if(node.parentElement&&profileMatch(node.parentElement))continue;
+      profile=node;
+      break;
     }
-  }
-  const exact=(root,text)=>[...root.querySelectorAll('*')].filter(n=>(n.textContent||'').trim().toLowerCase()===text.toLowerCase());
-  exact(accountPanel,'Active Member').forEach(n=>n.style.display='none');
-  exact(detailsPanel,'Active Member').forEach(n=>n.style.display='none');
-  exact(detailsPanel,'Membership Status').forEach(n=>{n.textContent='Membership Details';});
-  const colors=()=>overview.querySelectorAll('.badge,.member-badge,.member-head span,.member-card strong,.member-progress-top strong').forEach(n=>{const t=(n.textContent||'').trim();n.classList.remove('vmc-status-active','vmc-status-expired');if(/active|healthy/i.test(t)&&!/inactive/i.test(t))n.classList.add('vmc-status-active');if(/expired/i.test(t))n.classList.add('vmc-status-expired');});
-  colors();
-  new MutationObserver(colors).observe(overview,{subtree:true,childList:true,characterData:true});
+    if(profile){
+      let card=profile;
+      while(card.parentElement&&card.parentElement!==overview&&card.parentElement!==layout&&card.parentElement!==detailsPanel)card=card.parentElement;
+      if(card!==progress){
+        card.classList.add('vmc-profile-moved');
+        layout.insertBefore(card,layout.firstElementChild);
+      }
+    }
+
+    exact(accountPanel,'Active Member').forEach(n=>{n.style.display='none';});
+    exact(detailsPanel,'Active Member').forEach(n=>{n.style.display='none';});
+    exact(detailsPanel,'Membership Status').forEach(n=>{n.textContent='Membership Details';});
+
+    overview.querySelectorAll('.badge,.member-badge,.member-head span,.member-card strong,.member-progress-top strong').forEach(n=>{
+      const t=(n.textContent||'').trim();
+      n.classList.remove('vmc-status-active','vmc-status-expired');
+      if(/active|healthy/i.test(t)&&!/inactive/i.test(t))n.classList.add('vmc-status-active');
+      if(/expired/i.test(t))n.classList.add('vmc-status-expired');
+    });
+  };
+  normalize();
+  new MutationObserver(()=>normalize()).observe(overview,{subtree:true,childList:true,characterData:true});
 };
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

@@ -1,0 +1,16 @@
+:root{--member-progress-green:#48c774;--member-progress-yellow:#f3b63f;--member-progress-red:#e31b2d}
+.member-overview-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:10px!important}
+.member-grid,.settings-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important}
+.gallery-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+.member-card{padding:10px!important;border-radius:9px!important}
+.member-panel{border-radius:10px!important;margin-bottom:10px!important}
+.member-head{border-bottom:0!important;padding:9px 11px!important}
+.member-progress{margin:0 0 10px!important;padding:11px!important;border-radius:9px!important}
+.member-progress-track{height:7px!important}
+.member-table th,.member-table td{border-bottom:0!important}
+.brand,.top{border-bottom:0!important}
+.settings-grid{padding:10px!important}
+.settings-grid>.card{padding:11px!important}
+#vmcViewerProfile,.vmc-profile-picture,.profile-picture,.avatar-upload{display:none!important}
+@media(max-width:700px){.member-overview-grid,.member-grid,.settings-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.content{width:calc(100% - 12px)!important}.member-title h2{font-size:1.18rem!important}}
+@media(max-width:380px){.member-card{padding:8px!important}.member-card strong{font-size:.72rem!important}.member-card small{font-size:.5rem!important}.member-head{padding:8px!important}}

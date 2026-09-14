@@ -23,12 +23,13 @@ const boot=()=>{
   const layout=overview.querySelector('.member-overview-grid');
   if(!layout)return;
   const panels=[...layout.querySelectorAll(':scope > .member-panel')];
-  const statusPanel=panels[1];
-  const progress=statusPanel?.querySelector(':scope > .member-progress');
-  if(!statusPanel||!progress)return;
+  const accountPanel=panels[0];
+  const subscriptionPanel=panels[1];
+  const progress=subscriptionPanel?.querySelector(':scope > .member-progress');
+  if(!accountPanel||!subscriptionPanel||!progress)return;
 
-  // Keep the progress card separate. It must not be nested inside Membership Status.
-  layout.insertBefore(progress,panels[0]||null);
+  // Keep the progress card separate and directly above the account information.
+  layout.insertBefore(progress,accountPanel);
 
   const isProfileText=el=>{
     const text=(el.textContent||'').trim();
@@ -44,19 +45,35 @@ const boot=()=>{
   }
 
   // Remove only duplicate profile cards accidentally placed inside Membership Status.
-  [...statusPanel.querySelectorAll('*')].forEach(node=>{
-    if(node===statusPanel||node===progress)return;
+  [...subscriptionPanel.querySelectorAll('*')].forEach(node=>{
+    if(node===subscriptionPanel||node===progress)return;
     if(isProfileText(node)){
       let card=node;
-      while(card.parentElement&&card.parentElement!==statusPanel&&card.parentElement!==overview)card=card.parentElement;
+      while(card.parentElement&&card.parentElement!==subscriptionPanel&&card.parentElement!==overview)card=card.parentElement;
       if(card!==progress)card.remove();
     }
   });
 
-  if(profile&&profile!==progress&&!statusPanel.contains(profile)){
+  if(profile&&profile!==progress&&!subscriptionPanel.contains(profile)){
     profile.classList.add('vmc-profile-moved');
     layout.insertBefore(profile,progress);
   }
+
+  const exactTextElements=(root,text)=>[...root.querySelectorAll('*')].filter(node=>(node.textContent||'').trim().toLowerCase()===text.toLowerCase());
+  const hideExact=(root,text)=>{
+    exactTextElements(root,text).forEach(node=>{node.style.display='none';});
+  };
+
+  // The compact Membership Status card above remains unchanged. Remove the redundant
+  // Active Member labels from the two detailed information cards only.
+  hideExact(accountPanel,'Active Member');
+  hideExact(subscriptionPanel,'Active Member');
+
+  // Rename the detailed Membership Status card without affecting the compact status card.
+  exactTextElements(subscriptionPanel,'Membership Status').forEach(node=>{
+    node.textContent='Subscription information';
+    node.style.textTransform='uppercase';
+  });
 
   const applyStatusColors=()=>{
     const nodes=overview.querySelectorAll('.badge,.member-badge,.member-head span,.member-card strong,.member-progress-top strong,span,b,strong');

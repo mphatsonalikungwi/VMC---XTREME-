@@ -19,6 +19,7 @@ const run=()=>{
 .member-status-panel .member-head b,.member-active-card .member-head b{color:#f7f7f5}
 .member-status-panel .member-card strong.active-value,.member-active-card .active-value{color:#48c774!important}
 .member-progress{margin-top:12px!important}
+.member-progress.healthy .member-progress-top strong{color:#48c774!important}
 .member-welcome{margin-bottom:12px!important}
 #vmcViewerProfile,#vmcViewerDelete,#vmcViewerClose{display:none!important}
 @media(max-width:700px){.member-overview-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.member-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.settings-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.gallery-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.member-active-main{padding:13px;gap:9px}.member-active-main strong{font-size:.95rem}}
@@ -29,7 +30,7 @@ const run=()=>{
 document.head.appendChild(style);
  const panels=[...grid.querySelectorAll(':scope > .member-panel')];
  if(panels.length<2)return;
- const account=panels[0], status=panels[1];
+ const status=panels[1];
  if(!overview.querySelector('.member-active-card')){
    const active=document.createElement('div');active.className='member-panel member-active-card';
    active.innerHTML='<div class="member-head"><b>Active Member</b><span class="member-active-dot" aria-label="Active"></span></div><div class="member-active-main"><div><small>Your membership</small><strong class="active-value">Active Member</strong></div><div><small>Plan</small><strong id="memberActivePlan">—</strong></div></div>';

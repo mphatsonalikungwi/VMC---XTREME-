@@ -8,8 +8,8 @@ const boot=()=>{
   const style=document.createElement('style');
   style.id='VMC_MEMBER_OVERVIEW_PRIORITY_STYLE';
   style.textContent=`
-    #vmcProfileView .member-overview-stack{display:block!important;margin-bottom:0}
-    #vmcProfileView .member-overview-stack>.member-panel{width:100%;margin-bottom:12px}
+    #vmcProfileView .member-overview-grid{display:block!important;margin-bottom:0}
+    #vmcProfileView .member-overview-grid>.member-panel{width:100%!important;margin-bottom:12px!important}
     #vmcProfileView .member-profile-strip{display:flex;align-items:center;gap:16px;margin:0 12px 12px;padding:14px;border:1px solid #292d34;background:#15171b;border-radius:12px;min-width:0}
     #vmcProfileView .member-profile-avatar{width:86px;height:86px;flex:0 0 86px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#0b0c0f;border:2px solid #343842;color:#d9dde3;font-size:1.4rem;font-weight:900;letter-spacing:.02em}
     #vmcProfileView .member-profile-avatar img{display:block;width:100%;height:100%;object-fit:cover}
@@ -27,44 +27,53 @@ const boot=()=>{
   document.head.appendChild(style);
 
   const layout=overview.querySelector('.member-overview-grid');
-  if(layout)layout.className='member-overview-stack';
-
-  const statusPanel=overview.querySelector('.member-overview-stack>.member-panel:nth-child(2)');
+  const panels=layout?.querySelectorAll(':scope > .member-panel');
+  const statusPanel=panels?.[1];
   const progress=statusPanel?.querySelector('.member-progress');
-  if(!statusPanel||!progress)return;
+  if(!layout||!statusPanel||!progress)return;
 
-  const strip=document.createElement('div');
-  strip.className='member-profile-strip';
-  strip.innerHTML='<div class="member-profile-avatar" id="memberOverviewAvatar">V</div><div class="member-profile-copy"><p class="member-profile-eyebrow">Welcome back</p><h3 id="memberOverviewWelcome">Welcome back, VMC member.</h3><p id="memberOverviewUsername">Your VMC journey continues here.</p></div>';
-  statusPanel.insertBefore(strip,progress);
+  const existing=overview.querySelector('.member-profile-strip');
+  if(existing)existing.remove();
 
-  const initials=name=>String(name||'V').trim().split(/\\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase()||'V';
-  const load=async()=>{
-    try{
-      if(typeof sb==='undefined')return;
-      const {data:{user},error:userError}=await sb.auth.getUser();
-      if(userError||!user)return;
-      const {data:p,error}=await sb.from('profiles').select('full_name,username,avatar_url').eq('id',user.id).maybeSingle();
-      if(error||!p)return;
-      const name=p.full_name||p.username||'VMC member';
-      const first=String(name).trim().split(/\\s+/)[0]||'member';
-      const welcome=document.getElementById('memberOverviewWelcome');
-      const username=document.getElementById('memberOverviewUsername');
-      const avatar=document.getElementById('memberOverviewAvatar');
-      if(welcome)welcome.textContent=`Welcome back, ${name}. It’s great to have you with us again.`;
-      if(username)username.textContent=p.username?`@${String(p.username).replace(/^@/,'')}`:'Your VMC journey continues here.';
-      if(avatar){
-        avatar.textContent=initials(name);
-        if(p.avatar_url){
-          const image=document.createElement('img');
-          image.src=`${p.avatar_url}${String(p.avatar_url).includes('?')?'&':'?'}v=${Date.now()}`;
-          image.alt=`${first}'s profile picture`;
-          image.onload=()=>{avatar.textContent='';avatar.appendChild(image)};
-        }
+  const findWelcomeCard=()=>{
+    const nodes=[...overview.querySelectorAll('*')].filter(node=>node.children.length===0&&/welcome back/i.test(node.textContent||''));
+    for(const node of nodes){
+      let current=node;
+      for(let i=0;i<7&&current&&current!==overview;i++,current=current.parentElement){
+        const text=(current.textContent||'').trim();
+        if(current.querySelector('img')&&/@[a-z0-9_]+/i.test(text)&&text.length<600)return current;
       }
-    }catch(error){console.warn('VMC overview profile section failed',error)}
+    }
+    return null;
   };
-  load();
+
+  const source=findWelcomeCard();
+  if(source){
+    source.classList.add('member-profile-strip');
+    const image=source.querySelector('img');
+    if(image){
+      image.classList.add('member-profile-avatar-image');
+      const avatar=document.createElement('div');
+      avatar.className='member-profile-avatar';
+      avatar.appendChild(image.cloneNode(true));
+      image.replaceWith(avatar);
+    }
+    const copy=document.createElement('div');
+    copy.className='member-profile-copy';
+    const children=[...source.children];
+    if(children.length>=2){
+      const avatar=source.querySelector('.member-profile-avatar');
+      const textNodes=children.filter(child=>child!==avatar);
+      textNodes.forEach(child=>copy.appendChild(child));
+      source.appendChild(copy);
+    }
+    statusPanel.insertBefore(source,progress);
+  }else{
+    const strip=document.createElement('div');
+    strip.className='member-profile-strip';
+    strip.innerHTML='<div class="member-profile-avatar" id="memberOverviewAvatar">V</div><div class="member-profile-copy"><p class="member-profile-eyebrow">Welcome back</p><h3 id="memberOverviewWelcome">Welcome back, VMC member.</h3><p id="memberOverviewUsername">Your VMC journey continues here.</p></div>';
+    statusPanel.insertBefore(strip,progress);
+  }
 };
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

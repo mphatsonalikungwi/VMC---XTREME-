@@ -68,6 +68,15 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Fetch official VMC logo
+        working-directory: mobile
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/mphatsonalikungwi/VMC---XTREME-/mobile-assets/assets/logo.png" \
+            --output android/app/src/main/res/drawable/vmc_logo.png
+          test -s android/app/src/main/res/drawable/vmc_logo.png
+
       - name: Apply VMC Android branding
         run: node scripts/brand-android.mjs
 

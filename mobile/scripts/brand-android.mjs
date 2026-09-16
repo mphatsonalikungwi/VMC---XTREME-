@@ -5,14 +5,14 @@ const root = new URL('../android/', import.meta.url).pathname;
 const res = join(root, 'app', 'src', 'main', 'res');
 
 const files = {
-  'values/vmc_brand.xml': `<?xml version="1.0" encoding="utf-8"?><resources><color name="vmc_icon_background">#FF304F</color></resources>`,
+  'values/vmc_brand.xml': `<?xml version="1.0" encoding="utf-8"?><resources><color name="vmc_icon_background">#000000</color></resources>`,
 
-  // Android adaptive-icon layers use a 108dp canvas. Android documents a
-  // 66dp protected logo area. A 21dp inset produces a 66dp foreground asset:
-  // large enough to match normal launcher icons without being clipped.
+  // Android adaptive-icon layers use a 108dp canvas. Android's protected
+  // foreground area is approximately 66dp, keeping the logo visible without
+  // clipping on Samsung and other launchers.
   'drawable/vmc_icon_foreground.xml': `<?xml version="1.0" encoding="utf-8"?><inset xmlns:android="http://schemas.android.com/apk/res/android" android:insetLeft="21dp" android:insetTop="21dp" android:insetRight="21dp" android:insetBottom="21dp"><bitmap android:src="@drawable/vmc_logo" android:gravity="fill" android:antialias="true" android:filter="true"/></inset>`,
 
-  // Legacy fallback uses the same 66dp protected area on a 108dp canvas.
+  // Legacy fallback uses the same protected foreground area and black base.
   'drawable/vmc_legacy_icon.xml': `<?xml version="1.0" encoding="utf-8"?><layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item android:drawable="@color/vmc_icon_background"/><item android:left="21dp" android:top="21dp" android:right="21dp" android:bottom="21dp"><bitmap android:src="@drawable/vmc_logo" android:gravity="fill" android:antialias="true" android:filter="true"/></item></layer-list>`,
 
   'mipmap-anydpi-v26/ic_launcher.xml': `<?xml version="1.0" encoding="utf-8"?><adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@color/vmc_icon_background"/><foreground android:drawable="@drawable/vmc_icon_foreground"/></adaptive-icon>`,
@@ -28,4 +28,4 @@ for (const [relative, content] of Object.entries(files)) {
   await writeFile(target, content, 'utf8');
 }
 
-console.log('VMC launcher icon uses a 66dp adaptive safe-zone foreground.');
+console.log('VMC launcher icon configured with black background and 66dp foreground safe zone.');

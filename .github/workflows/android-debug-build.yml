@@ -73,7 +73,7 @@ jobs:
         run: |
           mkdir -p android/app/src/main/res/drawable
           curl --fail --location --silent --show-error \
-            "https://raw.githubusercontent.com/mphatsonalikungwi/VMC---XTREME-/mobile-assets/assets/logo.png" \
+            "https://raw.githubusercontent.com/mphatsonalikungwi/VMC---XTREME-/mobile-capacitor-foundation/assets/logo.png" \
             --output android/app/src/main/res/drawable/vmc_logo.png
           test -s android/app/src/main/res/drawable/vmc_logo.png
 

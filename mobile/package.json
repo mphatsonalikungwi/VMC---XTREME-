@@ -1,0 +1,17 @@
+{
+  "name": "vmc-xtreme-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VMC Xtreme Fitness Android application shell",
+  "scripts": {
+    "cap:sync": "cap sync",
+    "cap:android": "cap add android",
+    "cap:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0"
+  }
+}

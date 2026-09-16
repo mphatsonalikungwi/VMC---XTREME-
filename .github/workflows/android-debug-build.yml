@@ -68,6 +68,9 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Apply Android back-button navigation
+        run: node scripts/patch-android-navigation.mjs
+
       - name: Fetch official VMC logo
         working-directory: mobile
         run: |

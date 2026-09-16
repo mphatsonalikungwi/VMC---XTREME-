@@ -68,6 +68,9 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Apply VMC Android branding
+        run: node scripts/brand-android.mjs
+
       - name: Synchronize web assets and native dependencies
         run: npx cap sync android
 

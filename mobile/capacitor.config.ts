@@ -8,6 +8,16 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://vmcxtreme.pages.dev',
     cleartext: false
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 1200,
+      launchAutoHide: true,
+      launchFadeOutDuration: 250,
+      backgroundColor: '#05070a',
+      showSpinner: false,
+      androidScaleType: 'CENTER_CROP'
+    }
   }
 };
 

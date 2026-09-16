@@ -2,13 +2,54 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05070a" />
     <title>VMC Xtreme</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; background: #05070a; }
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        color: #f5f5f7;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      main { width: min(100%, 360px); text-align: center; }
+      .mark {
+        width: 92px;
+        height: 92px;
+        margin: 0 auto 28px;
+        border-radius: 26px;
+        display: grid;
+        place-items: center;
+        background: #ff304f;
+        box-shadow: 0 16px 44px rgba(255, 48, 79, .18);
+        overflow: hidden;
+      }
+      .mark span { font-size: 54px; font-weight: 900; line-height: 1; color: #fff; }
+      h1 { margin: 0 0 12px; font-size: 25px; letter-spacing: .08em; }
+      p { margin: 0; color: #a7aab4; font-size: 15px; line-height: 1.6; }
+      .loader {
+        width: 30px;
+        height: 30px;
+        margin: 28px auto 0;
+        border: 3px solid #30323a;
+        border-top-color: #ff304f;
+        border-radius: 50%;
+        animation: spin .8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
-    <main style="font-family: sans-serif; padding: 2rem; text-align: center;">
-      <h1>VMC Xtreme</h1>
-      <p>Loading the VMC member portal…</p>
+    <main aria-live="polite">
+      <div class="mark" aria-hidden="true"><span>V</span></div>
+      <h1>VMC XTREME</h1>
+      <p>Loading your VMC member portal…</p>
+      <div class="loader" aria-hidden="true"></div>
     </main>
   </body>
 </html>

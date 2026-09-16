@@ -71,6 +71,9 @@ jobs:
       - name: Apply Android back-button navigation
         run: node scripts/patch-android-navigation.mjs
 
+      - name: Apply Android session persistence
+        run: node scripts/patch-android-persistence.mjs
+
       - name: Fetch official VMC logo
         working-directory: mobile
         run: |

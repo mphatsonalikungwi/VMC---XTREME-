@@ -5,14 +5,18 @@ const root = new URL('../android/', import.meta.url).pathname;
 const activityPath = join(root, 'app', 'src', 'main', 'java', 'mw', 'vmcxtreme', 'memberportal', 'MainActivity.java');
 const existing = await readFile(activityPath, 'utf8');
 
-const imports = `import android.webkit.CookieManager;\nimport android.webkit.WebSettings;\n`;
-const updatedImports = existing.includes('import android.webkit.CookieManager;')
-  ? existing
-  : existing.replace('import android.webkit.WebView;\n', `import android.webkit.WebView;\n${imports}`);
+let result = existing;
+if (!result.includes('import android.graphics.Color;')) {
+  result = result.replace('import android.os.Bundle;\n', 'import android.os.Bundle;\nimport android.graphics.Color;\n');
+}
+if (!result.includes('import android.webkit.CookieManager;')) {
+  result = result.replace('import android.webkit.WebView;\n', 'import android.webkit.WebView;\nimport android.webkit.CookieManager;\nimport android.webkit.WebSettings;\n');
+}
 
 const onCreate = `
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
         if (webView != null) {
+            webView.setBackgroundColor(Color.BLACK);
             WebSettings settings = webView.getSettings();
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
@@ -24,8 +28,7 @@ const onCreate = `
         }
 `;
 
-let result = updatedImports;
-if (!result.includes('settings.setDomStorageEnabled(true);')) {
+if (!result.includes('webView.setBackgroundColor(Color.BLACK);')) {
   result = result.replace('super.onCreate(savedInstanceState);\n', `super.onCreate(savedInstanceState);\n${onCreate}`);
 }
 
@@ -42,4 +45,4 @@ if (!result.includes('public void onStop()')) {
 }
 
 await writeFile(activityPath, result, 'utf8');
-console.log('Android WebView cookie and DOM storage persistence enabled.');
+console.log('Android WebView cookie persistence and black loading background enabled.');

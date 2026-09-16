@@ -6,13 +6,10 @@ const activityPath = join(root, 'app', 'src', 'main', 'java', 'mw', 'vmcxtreme',
 
 const content = `package mw.vmcxtreme.memberportal;
 
-import android.os.Bundle;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
-    private boolean portalBackGuard = false;
-
     @Override
     public void onBackPressed() {
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
@@ -21,34 +18,40 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        String currentUrl = webView.getUrl();
-        boolean isVmcSite = currentUrl != null && currentUrl.startsWith("https://vmcxtreme.pages.dev");
+        webView.evaluateJavascript(
+            "(function(){" +
+            "var closeSelectors='[data-close], [aria-label=\\\"Close\\\"], [aria-label*=\\\"Close\\\" i], .modal-close, .drawer-close, .close-modal, .close-drawer';" +
+            "var overlay=document.querySelector('dialog[open], .modal.show, .modal.is-open, .drawer.open, .drawer.is-open, [role=\\\"dialog\\\"]');" +
+            "if(overlay){var close=overlay.querySelector(closeSelectors);if(close){close.click();return 'closed';}" +
+            "overlay.removeAttribute('open');overlay.classList.remove('show','is-open','open');return 'closed';}" +
+            "var title=(document.title||'').toLowerCase();" +
+            "var body=(document.body&&document.body.innerText||'').toLowerCase();" +
+            "var portal=title.indexOf('portal')>=0 || !!document.querySelector('[data-member-portal], #member-portal, #management-portal, .member-portal, .management-portal');" +
+            "return portal?'portal':'public';" +
+            "})()",
+            value -> {
+                if (value != null && value.contains("closed")) {
+                    return;
+                }
 
-        // The VMC portal is a single-page application. A browser-history entry
-        // can point to the public landing view even while the member is inside
-        // the authenticated portal. Never follow that entry blindly.
-        if (isVmcSite && !portalBackGuard) {
-            portalBackGuard = true;
-            webView.evaluateJavascript(
-                "(function(){" +
-                "var active=document.querySelector('.modal.show,.modal[aria-hidden=\\\"false\\\"],dialog[open],[data-modal].is-open,.drawer.open,.sidebar.open,.nav-menu.open');" +
-                "if(active){var b=active.querySelector('[data-close],.close,[aria-label*=\\\"Close\\\" i],button');if(b)b.click();return 'closed';}" +
-                "return 'portal-root';" +
-                "})()",
-                value -> portalBackGuard = false
-            );
-            return;
-        }
+                if (value != null && value.contains("portal")) {
+                    // Portal is a single-page remote app. Do not navigate its
+                    // browser history back to the public landing page.
+                    moveTaskToBack(true);
+                    return;
+                }
 
-        if (webView.canGoBack()) {
-            webView.goBack();
-            return;
-        }
-        super.onBackPressed();
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    MainActivity.super.onBackPressed();
+                }
+            }
+        );
     }
 }
 `;
 
 await mkdir(join(activityPath, '..'), { recursive: true });
 await writeFile(activityPath, content, 'utf8');
-console.log('Android portal-aware back navigation behavior applied.');
+console.log('Android back button now closes overlays, backgrounds the portal, and navigates public history safely.');

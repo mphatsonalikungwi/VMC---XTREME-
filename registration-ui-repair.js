@@ -6,26 +6,9 @@ function errorText(value){if(!value)return'';if(typeof value==='string')return v
 function installStyles(){if(document.getElementById('vmcRegistrationRepairStyles'))return;const style=document.createElement('style');style.id='vmcRegistrationRepairStyles';style.textContent='.vmc-login-instructions{margin-top:16px;border:1px solid #4b1b23;background:#1b1114;border-radius:15px;padding:16px}.vmc-login-account{padding:13px 14px;border-radius:11px;background:#0b0c0f;border:1px solid #343840}.vmc-login-label{color:#a9acb2;font-size:.66rem;letter-spacing:.12em;font-weight:850;text-transform:uppercase}.vmc-login-account strong{display:block;margin-top:6px;color:#ff6977;font-size:1.1rem;overflow-wrap:anywhere}.vmc-login-copy{margin-top:14px;color:#c7cad0;font-size:.82rem}.vmc-login-copy b{display:block;color:#fff;font-size:.9rem;margin-bottom:6px}.vmc-login-copy p{margin:6px 0}.vmc-login-copy strong{color:#fff;overflow-wrap:anywhere}';document.head.appendChild(style)}
 installStyles();
 const nativeFetch=window.fetch.bind(window);
-window.fetch=async(...args)=>{
- const response=await nativeFetch(...args);
- try{
-  const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';
-  if(/\/functions\/v1\/vmc-registration-api(?:[/?]|$)/i.test(url)){
-   const clone=response.clone();const data=await clone.json().catch(()=>null);
-   if(data)state.result=data;
-   if(!response.ok&&data?.error)setTimeout(()=>showRegistrationError(data.error),0);
-  }
- }catch(_){ }
- return response;
-};
+window.fetch=async(...args)=>{const response=await nativeFetch(...args);try{const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';if(/\/functions\/v1\/vmc-registration-api(?:[/?]|$)/i.test(url)){const clone=response.clone();const data=await clone.json().catch(()=>null);if(data)state.result=data;if(!response.ok&&data?.error)setTimeout(()=>showRegistrationError(data.error),0)}}catch(_){ }return response};
 function showRegistrationError(message){const el=document.querySelector('#registerError')||document.querySelector('.form-error.show')||document.querySelector('.error.show');if(el){el.textContent=errorText(message);el.classList.add('show')}}
-function addInstructions(){
- const view=document.querySelector('#successView');if(!view||view.hidden)return;
- const success=view.querySelector('.success');if(!success||success.dataset.vmcInstructions==='1')return;
- const result=state.result||{};const profile=result.profile||{};const username=result.username||profile.username||'';const name=profile.full_name||state.submittedName||'your name';const loginEmail=state.submittedEmail;const actualUsername=username||usernameFallback(name);
- const box=document.createElement('div');box.className='vmc-login-instructions';box.innerHTML=`<div class="vmc-login-account"><div class="vmc-login-label">YOUR VMC USERNAME</div><strong>@${esc(actualUsername)}_vmc1</strong></div><div class="vmc-login-copy"><b>How to sign in</b><p>Use your VMC username and the password you created when registering.</p>${loginEmail?`<p>You may also use your registered email address: <strong>${esc(loginEmail)}</strong></p>`:''}<p>Your membership remains pending until VMC verifies your payment.</p></div>`;
- const account=success.querySelector('.account-box');if(account)account.insertAdjacentElement('afterend',box);else success.appendChild(box);success.dataset.vmcInstructions='1';
-}
+function addInstructions(){const view=document.querySelector('#successView');if(!view||view.hidden)return;const success=view.querySelector('.success');if(!success||success.dataset.vmcInstructions==='1')return;const result=state.result||{};const profile=result.profile||{};const username=result.username||profile.username||'';const name=profile.full_name||state.submittedName||'your name';const loginEmail=state.submittedEmail;const actualUsername=username||usernameFallback(name);const box=document.createElement('div');box.className='vmc-login-instructions';box.innerHTML=`<div class="vmc-login-account"><div class="vmc-login-label">YOUR VMC USERNAME</div><strong>@${esc(actualUsername)}</strong></div><div class="vmc-login-copy"><b>How to sign in</b><p>Use your VMC username and the password you created when registering.</p>${loginEmail?`<p>You may also use your registered email address: <strong>${esc(loginEmail)}</strong></p>`:''}<p>Your membership remains pending until VMC verifies your payment.</p></div>`;const account=success.querySelector('.account-box');if(account)account.insertAdjacentElement('afterend',box);else success.appendChild(box);success.dataset.vmcInstructions='1'}
 function captureForm(){const form=document.querySelector('#registerForm');if(!form||form.dataset.vmcRepairBound)return;form.dataset.vmcRepairBound='1';form.addEventListener('submit',()=>{const fd=new FormData(form);state.submittedEmail=String(fd.get('email')||'').trim();state.submittedName=String(fd.get('full_name')||fd.get('fullName')||'').trim()},true)}
 function boot(){captureForm();addInstructions();new MutationObserver(()=>{captureForm();addInstructions()}).observe(document.body,{childList:true,subtree:true})}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();

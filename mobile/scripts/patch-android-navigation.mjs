@@ -6,10 +6,20 @@ const activityPath = join(root, 'app', 'src', 'main', 'java', 'mw', 'vmcxtreme',
 
 const content = `package mw.vmcxtreme.memberportal;
 
+import android.os.Bundle;
+import android.os.SystemClock;
 import android.webkit.WebView;
+import android.widget.Toast;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private long lastBackPress = 0L;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+    }
+
     @Override
     public void onBackPressed() {
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
@@ -18,33 +28,31 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
+        // The VMC portal is a remote single-page application. Calling
+        // WebView.goBack() here can replay the navigation entry that opened
+        // the portal and send the member to the public landing page. Never
+        // use WebView history as the portal's navigation model.
         webView.evaluateJavascript(
             "(function(){" +
-            "var closeSelectors='[data-close], [aria-label=\\\"Close\\\"], [aria-label*=\\\"Close\\\" i], .modal-close, .drawer-close, .close-modal, .close-drawer';" +
-            "var overlay=document.querySelector('dialog[open], .modal.show, .modal.is-open, .drawer.open, .drawer.is-open, [role=\\\"dialog\\\"]');" +
+            "var closeSelectors='[data-close], [aria-label=\\\"Close\\\"], [aria-label*=\\\"Close\\\" i], .modal-close, .drawer-close, .close-modal, .close-drawer, button.close';" +
+            "var overlay=document.querySelector('dialog[open], [role=\\\"dialog\\\"], .modal.show, .modal.is-open, .modal.open, .drawer.open, .drawer.is-open, .offcanvas.show');" +
             "if(overlay){var close=overlay.querySelector(closeSelectors);if(close){close.click();return 'closed';}" +
-            "overlay.removeAttribute('open');overlay.classList.remove('show','is-open','open');return 'closed';}" +
-            "var title=(document.title||'').toLowerCase();" +
-            "var body=(document.body&&document.body.innerText||'').toLowerCase();" +
-            "var portal=title.indexOf('portal')>=0 || !!document.querySelector('[data-member-portal], #member-portal, #management-portal, .member-portal, .management-portal');" +
-            "return portal?'portal':'public';" +
+            "overlay.removeAttribute('open');overlay.classList.remove('show','is-open','open');overlay.style.display='none';return 'closed';}" +
+            "return 'stay';" +
             "})()",
             value -> {
                 if (value != null && value.contains("closed")) {
+                    lastBackPress = 0L;
                     return;
                 }
 
-                if (value != null && value.contains("portal")) {
-                    // Portal is a single-page remote app. Do not navigate its
-                    // browser history back to the public landing page.
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastBackPress < 2000L) {
                     moveTaskToBack(true);
-                    return;
-                }
-
-                if (webView.canGoBack()) {
-                    webView.goBack();
+                    lastBackPress = 0L;
                 } else {
-                    MainActivity.super.onBackPressed();
+                    lastBackPress = now;
+                    Toast.makeText(MainActivity.this, "Press back again to exit", Toast.LENGTH_SHORT).show();
                 }
             }
         );
@@ -54,4 +62,4 @@ public class MainActivity extends BridgeActivity {
 
 await mkdir(join(activityPath, '..'), { recursive: true });
 await writeFile(activityPath, content, 'utf8');
-console.log('Android back button now closes overlays, backgrounds the portal, and navigates public history safely.');
+console.log('Android back handling now prevents WebView history navigation, closes overlays, and uses double-back to exit.');

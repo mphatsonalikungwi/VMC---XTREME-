@@ -63,5 +63,5 @@ const installTransactionResponsive=()=>{
   observer.observe(document.body,{childList:true,subtree:true});
   setTimeout(()=>observer.disconnect(),10000);
 };
-const boot=()=>{inject();moveProfileToHero();makeReferenceOptional();installPhotoUpload();overrideSubscriptionSubmit();syncReactivationButton();setTimeout(applyWelcomeState,120);installSecurity()};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+const boot=()=>{inject();moveProfileToHero();makeReferenceOptional();installPhotoUpload();overrideSubscriptionSubmit();syncReactivationButton();installTransactionResponsive();setTimeout(applyWelcomeState,120);installSecurity()};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

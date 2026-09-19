@@ -16,5 +16,52 @@ const syncReactivationButton=async()=>{const b=document.getElementById('reactiva
 const overrideSubscriptionSubmit=()=>{if(typeof window.callMember!=='function'||typeof $!=='function')return;window.callMember=async action=>{const tier=$('#tier').value,session=$('#sessionSelect').value,count=Math.floor(Number($('#duration').value||1)),unit=$('#unit').value,payment=$('#payment').value,reference=$('#reference').value.trim()||null;const b=action==='renew'?$('#renew'):$('#reactivate');b.disabled=true;b.textContent='Submitting…';$('#subMsg').textContent='';try{const {data,error}=await sb.functions.invoke('vmc-member-api-v2',{body:{action,membership_tier:tier,session_type:session,duration_count:count,duration_unit:unit,payment_channel:payment,receipt_reference:reference}});if(error)throw error;if(data?.error)throw Error(data.error);$('#subMsg').style.color='#8ee9aa';$('#subMsg').textContent=action==='renew'?'Renewal submitted. Your account has been reactivated automatically and is active while VMC verifies your payment.':'Welcome back. Your account is active and your reactivation is being reviewed.';if(action==='renew')$('#reactivate').style.display='none';setTimeout(load,900)}catch(e){$('#subMsg').style.color='#ff9ca6';$('#subMsg').textContent=e?.message||String(e)}finally{b.disabled=false;b.textContent=action==='renew'?'Renew Membership':'Reactivate Account'}}};
 const applyWelcomeState=()=>{const h=document.getElementById('welcome'),p=document.getElementById('welcomeText'),name=document.getElementById('name');if(!h||!name)return;const full=String(name.textContent||'VMC Member').trim(),first=full.split(/\s+/)[0]||'there';let fresh=false;try{fresh=sessionStorage.getItem('vmcNewMemberWelcome')==='1';if(fresh)sessionStorage.removeItem('vmcNewMemberWelcome')}catch(_){}if(fresh){h.textContent=`Welcome to VMC, ${first}! 👋`;p.textContent=`We're happy to have you with us, ${first}. This is your personal VMC space — keep showing up, keep improving, and make every session count.`;const j=document.getElementById('journey');if(j)j.textContent=`Welcome to VMC, ${first}. We're glad you're here. Your journey starts today.`}else{h.textContent=`Welcome back, ${first} 👋`;p.textContent='Your VMC space is yours — keep showing up, keep improving.'}};
 const installSecurity=()=>{if(document.getElementById('vmcSecurityCard'))return;const quick=document.querySelector('.quick')?.closest('.card'),layout=document.querySelector('.layout');if(!layout)return;const card=document.createElement('section');card.id='vmcSecurityCard';card.className='card wide vmc-security-card';card.innerHTML='<div class="vmc-security-row"><div class="vmc-security-copy"><h2>Account & Security</h2><p>Keep your VMC account secure and manage your password.</p></div><button class="btn red vmc-security-btn" type="button" id="vmcChangePassword">Change Password</button></div>';if(quick)layout.insertBefore(card,quick);else layout.appendChild(card);const modal=document.createElement('div');modal.className='vmc-security-modal';modal.id='vmcSecurityModal';modal.innerHTML='<div class="vmc-security-panel" role="dialog" aria-modal="true" aria-labelledby="vmcSecurityTitle"><div class="vmc-security-head"><h2 id="vmcSecurityTitle">Change Your Password</h2><button type="button" class="vmc-security-close" id="vmcSecurityClose" aria-label="Close">×</button></div><p class="vmc-security-help">Use your current password to create a new password for your VMC account.</p><div class="vmc-security-form"><label>Current password<input id="vmcCurrentPassword" type="password" autocomplete="current-password"></label><label>New password<input id="vmcNewPassword" type="password" autocomplete="new-password" minlength="8"></label><label>Confirm new password<input id="vmcConfirmPassword" type="password" autocomplete="new-password" minlength="8"></label></div><div class="vmc-security-error" id="vmcSecurityError" role="alert"></div><div class="vmc-security-actions"><button class="btn red" type="button" id="vmcSavePassword">Change Password</button><button class="btn" type="button" id="vmcCancelPassword">Cancel</button></div></div>';document.body.appendChild(modal);const open=()=>{modal.classList.add('open');setTimeout(()=>document.getElementById('vmcCurrentPassword')?.focus(),30)};const close=()=>{modal.classList.remove('open');['vmcCurrentPassword','vmcNewPassword','vmcConfirmPassword'].forEach(id=>{const x=document.getElementById(id);if(x)x.value=''});const er=document.getElementById('vmcSecurityError');if(er){er.textContent='';er.classList.remove('show')}};document.getElementById('vmcChangePassword').addEventListener('click',open);document.getElementById('vmcSecurityClose').addEventListener('click',close);document.getElementById('vmcCancelPassword').addEventListener('click',close);modal.addEventListener('click',e=>{if(e.target===modal)close()});document.getElementById('vmcSavePassword').addEventListener('click',async()=>{const er=document.getElementById('vmcSecurityError'),b=document.getElementById('vmcSavePassword'),current=document.getElementById('vmcCurrentPassword').value,newPass=document.getElementById('vmcNewPassword').value,confirm=document.getElementById('vmcConfirmPassword').value;if(!current||!newPass||!confirm){er.textContent='Please complete all password fields.';er.classList.add('show');return}if(newPass.length<8){er.textContent='Your new password must be at least 8 characters.';er.classList.add('show');return}if(newPass!==confirm){er.textContent='The new passwords do not match.';er.classList.add('show');return}b.disabled=true;b.textContent='Changing…';er.textContent='';er.classList.remove('show');try{const {data,error}=await sb.functions.invoke('vmc-member-api-v2',{body:{action:'change-password',current_password:current,new_password:newPass,confirm_password:confirm}});if(error)throw error;if(data?.error)throw new Error(data.error);close();toast('Your password has been changed successfully ✓')}catch(e){er.textContent=e?.message||'We could not change your password. Please try again.';er.classList.add('show')}finally{b.disabled=false;b.textContent='Change Password'}})};
+
+const installTransactionResponsive=()=>{
+  if(document.getElementById('vmcTransactionResponsive'))return;
+  const style=document.createElement('style');
+  style.id='vmcTransactionResponsive';
+  style.textContent=`
+    .vmc-mobile-transaction{display:none}
+    @media(max-width:760px){
+      .vmc-transaction-table-wrap{overflow:visible!important}
+      .vmc-transaction-table{width:100%!important;min-width:0!important;table-layout:fixed!important}
+      .vmc-transaction-table thead{display:none!important}
+      .vmc-transaction-table tbody{display:grid!important;gap:10px!important}
+      .vmc-transaction-table tbody tr{display:grid!important;grid-template-columns:1fr!important;gap:0!important;padding:12px!important;border:1px solid #292d35!important;border-radius:15px!important;background:#111318!important}
+      .vmc-transaction-table tbody td{display:grid!important;grid-template-columns:minmax(88px,38%) minmax(0,1fr)!important;align-items:start!important;gap:10px!important;width:100%!important;min-width:0!important;padding:8px 0!important;border:0!important;border-bottom:1px solid rgba(255,255,255,.06)!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important}
+      .vmc-transaction-table tbody td:last-child{border-bottom:0!important}
+      .vmc-transaction-table tbody td::before{color:#747b86!important;font-size:9px!important;font-weight:900!important;letter-spacing:.06em!important;text-transform:uppercase!important}
+      .vmc-transaction-table tbody td:nth-child(1)::before{content:'Date'}
+      .vmc-transaction-table tbody td:nth-child(2)::before{content:'Plan'}
+      .vmc-transaction-table tbody td:nth-child(3)::before{content:'Session'}
+      .vmc-transaction-table tbody td:nth-child(4)::before{content:'Amount'}
+      .vmc-transaction-table tbody td:nth-child(5)::before{content:'Payment'}
+      .vmc-transaction-table tbody td:nth-child(6)::before{content:'Reference'}
+      .vmc-transaction-table tbody td:nth-child(7)::before{content:'Status'}
+      .vmc-transaction-table tbody td:nth-child(8)::before{content:'Membership'}
+      .vmc-transaction-table tbody td:nth-child(7)>*,
+      .vmc-transaction-table tbody td:nth-child(8)>*{justify-self:start}
+    }
+  `;
+  document.head.appendChild(style);
+  const apply=()=>{
+    const heading=[...document.querySelectorAll('h1,h2,h3,h4,.title,.section-title')].find(el=>/transaction history/i.test(el.textContent||''));
+    if(!heading)return false;
+    const section=heading.closest('section,.card,.panel,.member-panel')||heading.parentElement?.parentElement;
+    if(!section)return false;
+    const table=section.querySelector('table');
+    if(!table)return false;
+    table.classList.add('vmc-transaction-table');
+    const wrap=table.closest('.table-wrap,.table-container,.table-responsive,.overflow,.card-body')||table.parentElement;
+    wrap?.classList.add('vmc-transaction-table-wrap');
+    return true;
+  };
+  if(apply())return;
+  let tries=0;
+  const observer=new MutationObserver(()=>{if(apply()||++tries>40)observer.disconnect()});
+  observer.observe(document.body,{childList:true,subtree:true});
+  setTimeout(()=>observer.disconnect(),10000);
+};
 const boot=()=>{inject();moveProfileToHero();makeReferenceOptional();installPhotoUpload();overrideSubscriptionSubmit();syncReactivationButton();setTimeout(applyWelcomeState,120);installSecurity()};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

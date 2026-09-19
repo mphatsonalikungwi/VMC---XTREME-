@@ -28,27 +28,7 @@ const boot=()=>{
     if(notice)notice.classList.add('open');
   };
 
-  const enhanceGallery=()=>{
-    const grid=document.getElementById('vmcGalleryGrid');
-    if(!grid)return;
-    grid.querySelectorAll(':scope>.gallery-tile').forEach(tile=>{
-      if(tile.parentElement?.classList.contains('vmc-gallery-tile-wrap'))return;
-      const wrap=document.createElement('div');wrap.className='vmc-gallery-tile-wrap';
-      tile.parentNode.insertBefore(wrap,tile);wrap.appendChild(tile);
-      const action=document.createElement('button');action.type='button';action.className='vmc-gallery-profile-btn';action.textContent='Make profile picture';
-      const isProfile=tile.querySelector('.badge');
-      if(isProfile){action.textContent='Current profile picture';action.disabled=true;}
-      action.addEventListener('click',()=>{
-        tile.click();
-        window.setTimeout(()=>{
-          const viewer=document.getElementById('vmcViewer'),profileBtn=document.getElementById('vmcViewerProfile');
-          if(viewer?.classList.contains('open')&&profileBtn&&!profileBtn.disabled)profileBtn.click();
-          else if(!viewer?.classList.contains('open'))showSafeNotice('Photo unavailable','Please open the photo again and try once more.');
-        },80);
-      });
-      wrap.appendChild(action);
-    });
-  };
+  const enhanceGallery=()=>{};
 
   const grid=document.getElementById('vmcGalleryGrid');
   if(grid)new MutationObserver(enhanceGallery).observe(grid,{childList:true,subtree:true});

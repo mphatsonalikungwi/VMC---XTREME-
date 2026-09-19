@@ -54,4 +54,77 @@ const render=async()=>{try{
 }catch(e){console.error('VMC member render',e)}};
 const loadTransactions=async()=>{const body=document.getElementById('memberTransactionsBody');if(!body)return;body.innerHTML='<tr><td colspan="8" class="member-empty">Loading…</td></tr>';try{const p=await getProfile();if(!p)return;const q=await sb.from('member_memberships').select('created_at,membership_tier,session_type,amount,payment_channel,receipt_reference,payment_status,registration_status,membership_status').eq('member_id',p.id).order('created_at',{ascending:false});if(q.error)throw q.error;const rows=q.data||[];body.innerHTML=rows.length?rows.map(r=>`<tr><td>${r.created_at?new Date(r.created_at).toLocaleDateString('en-GB'):'—'}</td><td>${esc(r.membership_tier||'—')}</td><td>${esc(r.session_type||'—')}</td><td>${r.amount!=null?'K'+Number(r.amount).toLocaleString('en-MW'):'—'}</td><td>${esc(r.payment_channel||'—')}</td><td>${esc(r.receipt_reference||'—')}</td><td>${badge(r.payment_status||r.registration_status)}</td><td>${badge(r.membership_status||'—')}</td></tr>`).join(''):'<tr><td colspan="8" class="member-empty">No membership transactions recorded yet.</td></tr>'}catch(e){console.error('VMC transactions',e);body.innerHTML='<tr><td colspan="8" class="member-empty">Transaction history could not be loaded.</td></tr>'}};
 const setupRenewal=async()=>{const button=document.getElementById('memberRenewButton');if(!button||button.dataset.bound)return;button.dataset.bound='1';const tier=document.getElementById('memberRenewTier'),session=document.getElementById('memberRenewSession'),duration=document.getElementById('memberRenewDuration'),payment=document.getElementById('memberRenewPayment'),reference=document.getElementById('memberRenewReference'),message=document.getElementById('memberRenewMessage');const syncDuration=()=>{if(!duration)return;const t=tier?.value||'Per Month';const unit=t==='Per Day'?'day':t==='Per Week'?'week':'month';const values=unit==='day'?[1,2,3,7,14,30]:unit==='week'?[1,2,3,4,8,12]:[1,2,3,6,12];duration.innerHTML=values.map(n=>'<option value="'+n+'">'+n+' '+unit+(n===1?'':'s')+'</option>').join('');updateRenewTotal()};const updateRenewTotal=()=>{const rates={'Per Day':{Single:2000,Double:3000},'Per Week':{Single:8000,Double:10000},'Per Month':{Single:30000,Double:35000}};const amount=(rates[tier?.value]?.[session?.value]||0)*Number(duration?.value||1);const total=document.getElementById('memberRenewTotal');if(total)total.textContent='K'+amount.toLocaleString('en-MW')};try{const p=await getProfile();if(tier&&p?.membership_tier)tier.value=p.membership_tier;if(session&&p?.session_type)session.value=p.session_type;if(payment&&p?.payment_channel)payment.value=p.payment_channel}catch(e){}syncDuration();tier?.addEventListener('change',syncDuration);session?.addEventListener('change',updateRenewTotal);duration?.addEventListener('change',updateRenewTotal);button.onclick=async()=>{button.disabled=true;button.textContent='Submitting…';message.className='message';message.textContent='';try{const {data,error}=await sb.functions.invoke('vmc-member-api-v2',{body:{action:'renew',membership_tier:tier.value,session_type:session.value,payment_channel:payment.value,receipt_reference:reference.value.trim()||null,duration_count:Number(duration?.value||1),duration_unit:tier.value==='Per Day'?'day':tier.value==='Per Week'?'week':'month'}});if(error)throw error;if(data?.error)throw Error(data.error);message.className='message success';message.textContent='Renewal submitted. VMC will verify your payment.';reference.value='';await render();await loadTransactions();}catch(e){message.className='message error';message.textContent=e?.message||'Renewal could not be submitted.'}finally{button.disabled=false;button.textContent='Renew Membership'}}};
+const setupGallery=async()=>{
+  const input=document.getElementById('vmcGalleryInput'),grid=document.getElementById('vmcGalleryGrid'),countEl=document.getElementById('vmcGalleryCount');
+  if(!input||!grid||!countEl)return;
+  let currentPhoto=null;
+  const closeViewer=()=>document.getElementById('vmcGalleryViewer')?.remove();
+  const notice=(title,msg)=>{
+    const old=document.getElementById('vmcGalleryNotice');old?.remove();
+    const box=document.createElement('div');box.id='vmcGalleryNotice';box.style.cssText='position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.78);backdrop-filter:blur(8px)';
+    box.innerHTML='<div style="width:min(430px,100%);background:#111317;border:1px solid #30343c;border-radius:20px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.6)"><h2 style="margin:0 0 8px;color:#fff">'+title+'</h2><p style="margin:0;color:#aeb4bd;line-height:1.5">'+msg+'</p><button type="button" style="width:100%;margin-top:16px;padding:11px;border:1px solid #00d79b;border-radius:9px;background:#102c24;color:#00d79b;font-weight:800">Continue</button></div>';
+    box.querySelector('button').onclick=()=>box.remove();document.body.appendChild(box);
+  };
+  const viewer=(photo)=>{
+    closeViewer();currentPhoto=photo;
+    const box=document.createElement('div');box.id='vmcGalleryViewer';box.style.cssText='position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.86);backdrop-filter:blur(8px)';
+    box.innerHTML='<div style="width:min(560px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#111317;border:1px solid #30343c;border-radius:20px;padding:16px;box-shadow:0 24px 80px rgba(0,0,0,.65)"><img src="'+photo.url+'" alt="VMC gallery photo" style="display:block;width:100%;max-height:62vh;object-fit:contain;border-radius:14px;background:#070809"><div style="display:grid;gap:10px;margin-top:14px"><button id="vmcGalleryMakeProfile" type="button" style="padding:11px;border:1px solid #00d79b;border-radius:9px;background:#102c24;color:#00d79b;font-weight:800">Make profile picture</button><button id="vmcGalleryDelete" type="button" style="padding:11px;border:1px solid #ef5368;border-radius:9px;background:#2a1117;color:#ff9aa3;font-weight:800">Delete photo</button><button id="vmcGalleryClose" type="button" style="padding:11px;border:1px solid #3b414b;border-radius:9px;background:#17191e;color:#fff;font-weight:800">Close</button></div></div>';
+    box.querySelector('#vmcGalleryClose').onclick=closeViewer;
+    box.onclick=e=>{if(e.target===box)closeViewer()};
+    box.querySelector('#vmcGalleryMakeProfile').onclick=async()=>{
+      try{
+        const {data:{user},error:ue}=await sb.auth.getUser();if(ue||!user)throw Error('Your session has expired.');
+        const {error}=await sb.from('profiles').update({avatar_url:photo.url}).eq('id',user.id);if(error)throw error;
+        closeViewer();notice('Profile picture updated','This photo is now your VMC profile picture.');
+        await render();
+      }catch(e){notice('Could not update picture',e?.message||'The profile picture could not be updated.')}
+    };
+    box.querySelector('#vmcGalleryDelete').onclick=async()=>{
+      if(!currentPhoto)return;
+      const button=box.querySelector('#vmcGalleryDelete');button.disabled=true;button.textContent='Deleting…';
+      try{
+        const {error:se}=await sb.storage.from('member-gallery').remove([currentPhoto.path]);if(se)throw se;
+        const {error:de}=await sb.from('member_photos').delete().eq('id',currentPhoto.id);if(de)throw de;
+        closeViewer();await loadGallery();
+      }catch(e){button.disabled=false;button.textContent='Delete photo';notice('Could not delete photo',e?.message||'The photo could not be deleted.')}
+    };
+    document.body.appendChild(box);
+  };
+  const loadGallery=async()=>{
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1;padding:30px;text-align:center;color:#777d86">Loading your photos…</div>';
+    try{
+      const {data:{user},error:ue}=await sb.auth.getUser();if(ue||!user)throw Error('Your session has expired.');
+      const {data:rows,error}=await sb.from('member_photos').select('id,storage_path,created_at').eq('member_id',user.id).order('created_at',{ascending:false}).limit(10);
+      if(error)throw error;
+      const photos=(rows||[]).map(row=>({...row,path:row.storage_path,url:sb.storage.from('member-gallery').getPublicUrl(row.storage_path).data.publicUrl}));
+      countEl.textContent=photos.length+' of 10 photos';
+      grid.innerHTML='';
+      if(!photos.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1;padding:30px;text-align:center;color:#777d86">No photos yet. Upload your first VMC moment.</div>';return}
+      photos.forEach(photo=>{
+        const tile=document.createElement('button');tile.type='button';tile.className='gallery-tile';tile.title='Open photo';
+        const img=document.createElement('img');img.src=photo.url;img.alt='VMC gallery photo';img.loading='lazy';tile.appendChild(img);tile.onclick=()=>viewer(photo);grid.appendChild(tile);
+      });
+    }catch(e){
+      grid.innerHTML='<div class="empty" style="grid-column:1/-1;padding:30px;text-align:center;color:#ff9aa3">Gallery could not be loaded.</div>';
+      console.error('VMC gallery load failed',e);
+    }
+  };
+  input.onchange=async()=>{
+    const file=input.files?.[0];input.value='';if(!file)return;
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)){notice('Unsupported image','Please choose a JPG, PNG or WebP image.');return}
+    if(file.size>5*1024*1024){notice('Image too large','Each gallery photo must be 5 MB or smaller.');return}
+    try{
+      const {data:{user},error:ue}=await sb.auth.getUser();if(ue||!user)throw Error('Your session has expired.');
+      const {count,error:ce}=await sb.from('member_photos').select('id',{count:'exact',head:true}).eq('member_id',user.id);if(ce)throw ce;
+      if((count||0)>=10){notice('Gallery limit reached','You can keep up to 10 photos in your VMC Gallery.');return}
+      const path=user.id+'/'+crypto.randomUUID()+'.'+(file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg');
+      const {error:se}=await sb.storage.from('member-gallery').upload(path,file,{contentType:file.type,upsert:false});if(se)throw se;
+      const {error:ie}=await sb.from('member_photos').insert({member_id:user.id,storage_path:path});if(ie){await sb.storage.from('member-gallery').remove([path]);throw ie}
+      await loadGallery();notice('Photo uploaded','Your photo has been added to your VMC Gallery.');
+    }catch(e){notice('Could not upload photo',e?.message||'The photo could not be uploaded.')}
+  };
+  await loadGallery();
+  return loadGallery;
+};
+const refreshGallery=await setupGallery();
 const map={overview:'vmcProfileView',membership:'memberMembership',reports:'memberReports',profile:'memberProfile',gallery:'vmcGalleryView',settings:'vmcSettingsView'};const buttons=[...side.querySelectorAll('[data-member]')];const activate=k=>{buttons.forEach(b=>b.classList.toggle('active',b.dataset.member===k));Object.values(map).forEach(id=>document.getElementById(id)?.classList.toggle('active',false));document.getElementById(map[k])?.classList.add('active');side.classList.remove('open');document.getElementById('memberDrawerBackdrop')?.classList.remove('open');if(k==='reports')loadTransactions();if(k==='membership'||k==='profile'||k==='overview'||k==='settings')render();if(k==='membership')setTimeout(setupRenewal,0);window.scrollTo(0,0)};buttons.forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();activate(b.dataset.member)},true));hamb.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();side.classList.add('open');document.getElementById('memberDrawerBackdrop')?.classList.add('open')},true);let bd=document.getElementById('memberDrawerBackdrop');if(!bd){bd=document.createElement('div');bd.id='memberDrawerBackdrop';bd.className='member-drawer-backdrop';document.body.appendChild(bd)}bd.onclick=()=>{side.classList.remove('open');bd.classList.remove('open')};document.getElementById('memberLogout').onclick=async()=>{await sb.auth.signOut();location.href='index.html'};document.getElementById('memberRefreshTransactions')?.addEventListener('click',loadTransactions);render();activate('overview');};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();})();

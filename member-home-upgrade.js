@@ -295,7 +295,7 @@ const galleryBoot=()=>{
     const button=document.getElementById('vmcPhotoSetProfile');
     button.disabled=true;button.textContent='Updating…';
     try{
-      const {data,error}=await sb.functions.invoke('vmc-member-gallery',{body:{action:'set_profile_picture',name:activePhoto.name}});
+      const {data,error}=await sb.functions.invoke('vmc-member-gallery',{body:{action:'set_profile_picture',photo_id:activePhoto.id||activePhoto.name,name:activePhoto.name}});
       if(error)throw error;
       if(data?.error)throw new Error(data.error);
       profileAvatarUrl=data.avatar_url||activePhoto.url;

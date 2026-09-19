@@ -23,7 +23,7 @@ const installTransactionResponsive=()=>{
   style.id='vmcTransactionResponsive';
   style.textContent=`
     .vmc-mobile-transaction{display:none}
-    @media(max-width:760px){
+    @media(max-width:900px){
       .vmc-transaction-table-wrap{overflow:visible!important}
       .vmc-transaction-table{width:100%!important;min-width:0!important;table-layout:fixed!important}
       .vmc-transaction-table thead{display:none!important}
@@ -46,11 +46,7 @@ const installTransactionResponsive=()=>{
   `;
   document.head.appendChild(style);
   const apply=()=>{
-    const heading=[...document.querySelectorAll('h1,h2,h3,h4,.title,.section-title')].find(el=>/transaction history/i.test(el.textContent||''));
-    if(!heading)return false;
-    const section=heading.closest('section,.card,.panel,.member-panel')||heading.parentElement?.parentElement;
-    if(!section)return false;
-    const table=section.querySelector('table');
+    const table=[...document.querySelectorAll('table')].find(t=>{const h=[...t.querySelectorAll('thead th')].map(x=>(x.textContent||'').trim().toLowerCase());return h.includes('date')&&h.includes('plan')&&h.includes('session')&&h.includes('amount')&&h.includes('payment');});
     if(!table)return false;
     table.classList.add('vmc-transaction-table');
     const wrap=table.closest('.table-wrap,.table-container,.table-responsive,.overflow,.card-body')||table.parentElement;
